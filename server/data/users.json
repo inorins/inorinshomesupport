@@ -1,0 +1,100 @@
+[
+  {
+    "id": "u-inorins-1",
+    "name": "Gaurav Shrestha",
+    "email": "gaurav@inorins.com",
+    "password": "scrypt$abba961a0d0a8ef7c8d378fb8ba64539$ab2dcf384eafff30a6bad6c326c37644a864853456ac4b032c6f39ca5604ef3a47313cb7235079a0ed919eabc3b5118d4a74add3909b111e3f12235065dc920f",
+    "role": "inorins",
+    "title": "Support Lead"
+  },
+  {
+    "id": "u-inorins-2",
+    "name": "Sujan Prajapati",
+    "email": "sujan@inorins.com",
+    "password": "scrypt$3d422f6d2a759a41342abfedfbb2c8fa$49a31fe3bd9cd5f4cd060e31e51913b8edf5c0d778ca8b69e516acc08d7a3b042bb6e790257cfe71dd07ed5967ae45fa97309bfdc30bdee8f75b93190bb60b2d",
+    "role": "inorins",
+    "title": "Support Engineer"
+  },
+  {
+    "id": "u-inorins-3",
+    "name": "Maheshwor Prajapati",
+    "email": "maheshwor@inorins.com",
+    "password": "scrypt$b9178ee563e687f96886b204b3c51032$f049fb2b2b3e94aafdfa23ddab9b97073209e4651c3782ae2e84a121cff864f7bf39fea4c6c7425fd751e32234d616744361e7fb568cfdce3f0229ae0a71588a",
+    "role": "inorins",
+    "title": "Support Engineer"
+  },
+  {
+    "id": "u-inorins-4",
+    "name": "Ramendra Pradhananga",
+    "email": "ramendra@inorins.com",
+    "password": "scrypt$1e72782629b2e6556500940902f52c9d$ba30ae54aaeb43b89920406022e483cde4c804eff64bebfa85462882a6dd567c6824f90690d31fa543657996c9f8da21f94e5353e94dd00f393ed4d31306589a",
+    "role": "inorins",
+    "title": "Support Engineer"
+  },
+  {
+    "id": "u-client-1",
+    "name": "Guheshwori Admin",
+    "email": "admin@guheshwori.com.np",
+    "password": "scrypt$34c1d26089e5fcaceb929be97459d451$a694033b6d857f77b02ab42612ca4205c918e1192e589cd5b07e8d2e2d08b79d6ba0998af29b5716d79dfd1c2880b06d7615fe722922d16bc280502c86d36376",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Guheshwori",
+    "bankDomain": "guheshwori.com.np",
+    "bankShortCode": "GH"
+  },
+  {
+    "id": "u-client-2",
+    "name": "Reliance Admin",
+    "email": "admin@reliance.com.np",
+    "password": "scrypt$45c6d5bacd656966fe535b02e18f7b2c$43d79d09f84ad067f48de4df9b1871d5cbdb4bc4b8a5e05830ea583e0bbcd07ae94ed57adb205c52749df02b520ec426e12c7a544c6232157ff79de93ee2cce5",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Reliance",
+    "bankDomain": "reliancebank.com.np",
+    "bankShortCode": "RL"
+  },
+  {
+    "id": "u-client-3",
+    "name": "Progressive Admin",
+    "email": "admin@progressivebank.com.np",
+    "password": "scrypt$4ae5a3cab44de2f3497a331d15126174$44ca37a872640cda12a327caa3b6c12a662d7124d2c90d98728011a0efeba2b1707e3bc2b6784344db83976d35ea7936df5b941608e4c3f2bf48a881e487cfbd",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Progressive",
+    "bankDomain": "progressivebank.com.np",
+    "bankShortCode": "PG"
+  },
+  {
+    "id": "u-client-4",
+    "name": "Ganapati Admin",
+    "email": "admin@ganapatibank.com.np",
+    "password": "scrypt$8f5e2884d9227a82dde3f295bced2f9b$2f4c089cf9f5d5147c0dec38f4238155ccd1db6f7bb01dc9ea18972723b0ce333d4cb340ab9715be84504b8edb17b55f5ce7ba10e93784f304edf48e1b507501",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Ganapati",
+    "bankDomain": "ganapatibank.com.np",
+    "bankShortCode": "GN"
+  },
+  {
+    "id": "u-client-5",
+    "name": "Goodwill Admin",
+    "email": "admin@goodwillbank.com.np",
+    "password": "scrypt$249a8324eb7365ffed2473003646307e$9f423d5b42f8a98a203be938140931cee0f255c922e704a5e0c8cd5ea9fce2ef21f327a314d04a298d610b25d867a11fd6bd1ae48be9cd2f2edf0c6574e324db",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Goodwill",
+    "bankDomain": "goodwillbank.com.np",
+    "bankShortCode": "GW"
+  },
+  {
+    "id": "u-client-6",
+    "name": "Shree Finance Admin",
+    "email": "admin@shreefinance.com.np",
+    "password": "scrypt$f3b1c3f3840c8f6a09d0877ab0bc3557$1f177b945e34f3f3be9032f8a57c2f8e5d779a802522095c8bfaea518f3d468d4c521bbbc1d0357523432d63a1e1fb796740c976546d9a11a90dad02141b2224",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Shree Finance",
+    "bankDomain": "shreefinance.com.np",
+    "bankShortCode": "SF"
+  }
+]
