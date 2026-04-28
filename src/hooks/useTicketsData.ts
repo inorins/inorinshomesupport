@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 
-export function useTickets() {
+export function useTickets(options?: { refetchInterval?: number }) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ['tickets'],
     queryFn: api.getTickets,
     retry: 1,
+    refetchInterval: options?.refetchInterval,
   });
 
   return {
@@ -15,6 +16,7 @@ export function useTickets() {
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isError: query.isError,
+    dataUpdatedAt: query.dataUpdatedAt,
     refetch: () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
   };
 }

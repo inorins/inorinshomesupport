@@ -349,12 +349,27 @@ app.get("/api/tickets", async (req, res, next) => {
   }
 });
 
+function clientCanAccessTicket(sessionUser, ticket) {
+  if (sessionUser?.role !== 'client') return true;
+  const domain = (sessionUser.bankDomain ?? '').toLowerCase();
+  const bankNameLower = (sessionUser.bankName ?? '').toLowerCase();
+  const email = String(ticket.reporterEmail ?? '').toLowerCase();
+  const emailMatches = domain ? email.endsWith(`@${domain}`) : false;
+  const bankMatches = bankNameLower ? String(ticket.bankName ?? '').toLowerCase() === bankNameLower : false;
+  return emailMatches || bankMatches;
+}
+
 app.get("/api/tickets/:id", async (req, res, next) => {
   try {
     const tickets = await loadTickets();
     const ticket = tickets.find((item) => item.id === req.params.id);
     if (!ticket) {
       res.status(404).json({ message: "Ticket not found." });
+      return;
+    }
+    const sessionUser = getSessionUser(req);
+    if (!clientCanAccessTicket(sessionUser, ticket)) {
+      res.status(403).json({ message: "Access denied." });
       return;
     }
     res.json(withLastUpdated(ticket));
@@ -526,9 +541,14 @@ app.patch("/api/tickets/:id/assign", async (req, res, next) => {
 app.get("/api/tickets/:id/messages", async (req, res, next) => {
   try {
     const tickets = await loadTickets();
-    const exists = tickets.some((ticket) => ticket.id === req.params.id);
-    if (!exists) {
+    const ticket = tickets.find((t) => t.id === req.params.id);
+    if (!ticket) {
       res.status(404).json({ message: "Ticket not found." });
+      return;
+    }
+    const sessionUser = getSessionUser(req);
+    if (!clientCanAccessTicket(sessionUser, ticket)) {
+      res.status(403).json({ message: "Access denied." });
       return;
     }
 

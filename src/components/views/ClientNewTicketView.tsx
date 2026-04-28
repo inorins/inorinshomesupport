@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { systemModules } from '@/data/mockData';
 import { api } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
@@ -31,7 +30,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('');
-  const [isProduction, setIsProduction] = useState(false);
+
   const [system, setSystem] = useState('');
   const [module, setModule] = useState('');
   const [moduleDetails, setModuleDetails] = useState('');
@@ -67,7 +66,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
     setTitle('');
     setDescription('');
     setPriority('');
-    setIsProduction(false);
+
     setSystem('');
     setModule('');
     setModuleDetails('');
@@ -152,7 +151,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
         form,
         requestType,
         requestedDelivery,
-        environment: isProduction ? 'Production' : 'UAT',
+        environment: 'Production',
         reporter: user?.name,
         reporterEmail: user?.email,
         attachments: attachmentsPayload,
@@ -274,43 +273,33 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            {requestType === 'Issue' ? (
-              <div className="space-y-1.5">
-                <Label>Priority <span className="text-primary">*</span></Label>
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Critical">Critical — System down</SelectItem>
-                    <SelectItem value="High">High — Major impact</SelectItem>
-                    <SelectItem value="Medium">Medium — Partial impact</SelectItem>
-                    <SelectItem value="Low">Low — Minor issue</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label>Desired Delivery</Label>
-                <Select value={requestedDelivery} onValueChange={setRequestedDelivery}>
-                  <SelectTrigger><SelectValue placeholder="How fast do you want this?" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ASAP">ASAP (urgent)</SelectItem>
-                    <SelectItem value="Within 1 week">Within 1 week</SelectItem>
-                    <SelectItem value="Within 2 weeks">Within 2 weeks</SelectItem>
-                    <SelectItem value="Flexible">Flexible</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+          {requestType === 'Issue' ? (
             <div className="space-y-1.5">
-              <Label>Environment</Label>
-              <div className="flex items-center gap-3 h-10 px-3 bg-surface rounded-md border border-border">
-                <span className={cn('text-sm font-medium', !isProduction ? 'text-foreground' : 'text-muted-foreground')}>UAT</span>
-                <Switch checked={isProduction} onCheckedChange={setIsProduction} />
-                <span className={cn('text-sm font-medium', isProduction ? 'text-primary' : 'text-muted-foreground')}>Production</span>
-              </div>
+              <Label>Priority <span className="text-primary">*</span></Label>
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Critical">Critical — System down</SelectItem>
+                  <SelectItem value="High">High — Major impact</SelectItem>
+                  <SelectItem value="Medium">Medium — Partial impact</SelectItem>
+                  <SelectItem value="Low">Low — Minor issue</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Desired Delivery</Label>
+              <Select value={requestedDelivery} onValueChange={setRequestedDelivery}>
+                <SelectTrigger><SelectValue placeholder="How fast do you want this?" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ASAP">ASAP (urgent)</SelectItem>
+                  <SelectItem value="Within 1 week">Within 1 week</SelectItem>
+                  <SelectItem value="Within 2 weeks">Within 2 weeks</SelectItem>
+                  <SelectItem value="Flexible">Flexible</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       )}
 
@@ -428,7 +417,6 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
             <div className="flex justify-between"><span className="text-muted-foreground">Priority</span><span className="font-medium text-foreground">{priority}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Delivery</span><span className="font-medium text-foreground">{requestedDelivery}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">System</span><span className="font-medium text-foreground">{system} › {module} › {form}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Environment</span><span className="font-medium text-foreground">{isProduction ? 'Production' : 'UAT'}</span></div>
           </div>
         </div>
       )}

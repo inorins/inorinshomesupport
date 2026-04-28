@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   TicketCheck, Clock, AlertTriangle, ArrowUpRight, RefreshCw,
   Download, Filter, X,
@@ -99,10 +99,57 @@ interface DashboardViewProps {
   searchQuery?: string;
 }
 
-export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewProps) {
-  const { tickets, isLoading, isFetching, isError, refetch } = useTickets();
+const ADMIN_EMAIL = 'inorins@inorins.com';
+const AUTO_REFRESH_MS = 2 * 60 * 1000;
 
+export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewProps) {
   const { user } = useAuth();
+  const isAdmin = user?.email === ADMIN_EMAIL;
+
+  const { tickets, isLoading, isFetching, isError, dataUpdatedAt, refetch } = useTickets({
+    refetchInterval: isAdmin ? AUTO_REFRESH_MS : undefined,
+  });
+
+  const [nextRefreshIn, setNextRefreshIn] = useState<number>(AUTO_REFRESH_MS / 1000);
+  const lastUpdatedRef = useRef<number>(dataUpdatedAt);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    lastUpdatedRef.current = dataUpdatedAt;
+    setNextRefreshIn(AUTO_REFRESH_MS / 1000);
+    const interval = setInterval(() => {
+      setNextRefreshIn((prev) => {
+        if (prev <= 1) return AUTO_REFRESH_MS / 1000;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isAdmin, dataUpdatedAt]);
+
+  const isInorins = user?.role === 'inorins';
+  const viewedKey = isInorins && user?.id ? `inorins_viewed_${user.id}` : null;
+  const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!viewedKey) return;
+    try {
+      const raw = localStorage.getItem(viewedKey);
+      if (raw) setViewedIds(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, [viewedKey]);
+
+  const handleViewTicket = (id: string) => {
+    if (viewedKey) {
+      setViewedIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        localStorage.setItem(viewedKey, JSON.stringify([...next]));
+        return next;
+      });
+    }
+    onViewTicket(id);
+  };
+
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterSystem, setFilterSystem] = useState<string>('all');
@@ -114,8 +161,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
 
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
-      // Only show unassigned or assigned to the current user
-      if (user?.name) {
+      if (!isAdmin && user?.role === 'inorins' && user?.name) {
         const assignee = (t.assignee ?? '').trim().toLowerCase();
         if (assignee && assignee !== user.name.toLowerCase()) return false;
       }
@@ -136,7 +182,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
       }
       return true;
     });
-  }, [tickets, filterPriority, filterStatus, filterSystem, filterBank, searchQuery, user, showAll]);
+  }, [tickets, filterPriority, filterStatus, filterSystem, filterBank, searchQuery, user, showAll, isAdmin]);
 
   const kpiCards = useMemo(() => [
     {
@@ -174,9 +220,16 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Overview of your support activity</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isAdmin ? 'All clients — overview of every support ticket' : 'Overview of your support activity'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <span className="text-xs text-muted-foreground tabular-nums">
+              Auto-refresh in {Math.floor(nextRefreshIn / 60)}:{String(nextRefreshIn % 60).padStart(2, '0')}
+            </span>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -298,7 +351,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
             Clear
           </button>
         )}
-
+  
       </div>
 
       {/* API error banner */}
@@ -356,14 +409,22 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
               ) : (
                 filtered.map((t) => {
                   const sla = getSLAInfo(t);
+                  const isUnread = isInorins && !viewedIds.has(t.id);
                   return (
                     <tr
                       key={t.id}
-                      onClick={() => onViewTicket(t.id)}
+                      onClick={() => handleViewTicket(t.id)}
                       className="border-b border-border last:border-0 hover:bg-surface/60 cursor-pointer transition-colors"
                     >
-                      <td className="px-5 py-3.5 font-mono text-xs font-semibold text-secondary">{t.id}</td>
-                      <td className="px-5 py-3.5 font-medium text-foreground max-w-xs truncate">{t.title}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2">
+                          {isUnread && (
+                            <span className="inline-block h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                          )}
+                          <span className={cn('font-mono text-xs font-semibold text-secondary', !isUnread && 'ml-4')}>{t.id}</span>
+                        </div>
+                      </td>
+                      <td className={cn('px-5 py-3.5 max-w-xs truncate', isUnread ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground')}>{t.title}</td>
                       <td className="px-5 py-3.5">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-secondary/10 text-secondary border border-secondary/20">
                           {t.system}
