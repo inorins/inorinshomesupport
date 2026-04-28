@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag,
+  ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag, Phone, Briefcase, CheckCircle2, Timer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +65,18 @@ function deriveBankName(bankName: string | undefined, reporterEmail: string) {
   return map[domain] ?? 'Inorins';
 }
 
+function formatDuration(ms: number): string {
+  const totalMinutes = Math.floor(ms / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
+  return parts.join(' ');
+}
+
 export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const { ticket, isLoading: ticketLoading } = useTicket(ticketId);
   const { messages, isLoading: msgsLoading } = useTicketMessages(ticketId);
@@ -80,6 +92,12 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const [currentAssignee, setCurrentAssignee] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | null>(null);
+
+  const [resolutionSummary, setResolutionSummary] = useState('');
+  const [resolutionCause, setResolutionCause] = useState('');
+  const [resolutionPrevention, setResolutionPrevention] = useState('');
+  const [resolveError, setResolveError] = useState('');
+  const [isResolving, setIsResolving] = useState(false);
 
   const displayStatus = (currentStatus || ticket?.status) as TicketStatus;
   const displayAssignee = currentAssignee || ticket?.assignee || 'Unassigned';
@@ -156,6 +174,34 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
     }
   };
 
+  const handleResolveConfirm = async () => {
+    if (!pendingStatus || !ticket || !resolutionSummary.trim()) return;
+    setIsResolving(true);
+    setResolveError('');
+    try {
+      await api.resolveTicket(ticket.id, pendingStatus as 'Resolved' | 'Closed', {
+        summary: resolutionSummary.trim(),
+        cause: resolutionCause.trim() || undefined,
+        preventionSteps: resolutionPrevention.trim() || undefined,
+      });
+      setCurrentStatus(pendingStatus);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+        queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] }),
+        queryClient.invalidateQueries({ queryKey: ['stats'] }),
+      ]);
+      // Close dialog only after success
+      setPendingStatus(null);
+      setResolutionSummary('');
+      setResolutionCause('');
+      setResolutionPrevention('');
+    } catch {
+      setResolveError('Failed to save resolution. Please try again.');
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
   if (ticketLoading) {
     return (
       <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
@@ -209,6 +255,33 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
             </div>
           </Section>
 
+          <Section title="Contact Person">
+            {ticket.contactName || ticket.contactDesignation || ticket.contactPhone ? (
+              <div className="rounded-md bg-card border border-border p-3 space-y-2">
+                {ticket.contactName && (
+                  <div className="flex items-center gap-2.5">
+                    <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium text-foreground">{ticket.contactName}</span>
+                  </div>
+                )}
+                {ticket.contactDesignation && (
+                  <div className="flex items-center gap-2.5">
+                    <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-foreground">{ticket.contactDesignation}</span>
+                  </div>
+                )}
+                {ticket.contactPhone && (
+                  <div className="flex items-center gap-2.5">
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <a href={`tel:${ticket.contactPhone}`} className="text-sm text-primary hover:underline">{ticket.contactPhone}</a>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No contact details provided.</p>
+            )}
+          </Section>
+
           <Section title="Details">
             <DetailRow icon={Tag} label="System" value={ticket.system} />
             <DetailRow icon={Tag} label="Bank" value={deriveBankName(ticket.bankName, ticket.reporterEmail)} />
@@ -219,6 +292,45 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
             {ticket.requestedDelivery ? <DetailRow icon={Tag} label="Delivery" value={ticket.requestedDelivery} /> : null}
             <DetailRow icon={Clock} label="Created" value={new Date(ticket.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' })} />
           </Section>
+
+          {/* Time Tracking */}
+          {(ticket.startedAt || ticket.resolvedAt) && (
+            <Section title="Time Tracking">
+              {ticket.startedAt && (
+                <DetailRow icon={Timer} label="Started" value={new Date(ticket.startedAt).toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' })} />
+              )}
+              {ticket.resolvedAt && (
+                <DetailRow icon={CheckCircle2} label="Resolved" value={new Date(ticket.resolvedAt).toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' })} />
+              )}
+              {ticket.startedAt && ticket.resolvedAt && (
+                <DetailRow icon={Clock} label="Total Duration" value={formatDuration(new Date(ticket.resolvedAt).getTime() - new Date(ticket.startedAt).getTime())} highlight />
+              )}
+            </Section>
+          )}
+
+          {/* Resolution Note (staff view) */}
+          {ticket.resolutionNote && (
+            <Section title="Resolution Note Sent">
+              <div className="rounded-md bg-success/10 border border-success/20 p-3 space-y-2">
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Summary</p>
+                  <p className="text-xs text-foreground leading-relaxed">{ticket.resolutionNote.summary}</p>
+                </div>
+                {ticket.resolutionNote.cause && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Root Cause</p>
+                    <p className="text-xs text-foreground leading-relaxed">{ticket.resolutionNote.cause}</p>
+                  </div>
+                )}
+                {ticket.resolutionNote.preventionSteps && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Prevention Steps</p>
+                    <p className="text-xs text-foreground leading-relaxed">{ticket.resolutionNote.preventionSteps}</p>
+                  </div>
+                )}
+              </div>
+            </Section>
+          )}
 
           {/* Editable Status */}
           <Section title="Status">
@@ -390,24 +502,68 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
         </div>
       </div>
 
-      <AlertDialog open={!!pendingStatus} onOpenChange={(open) => { if (!open) setPendingStatus(null); }}>
-        <AlertDialogContent>
+      <AlertDialog open={!!pendingStatus} onOpenChange={(open) => {
+        if (!open && !isResolving) {
+          setPendingStatus(null);
+          setResolutionSummary('');
+          setResolutionCause('');
+          setResolutionPrevention('');
+          setResolveError('');
+        }
+      }}>
+        <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Mark as {pendingStatus}?</AlertDialogTitle>
+            <AlertDialogTitle>Mark ticket as {pendingStatus}</AlertDialogTitle>
             <AlertDialogDescription>
-              This ticket will be marked as <strong>{pendingStatus}</strong> and the status cannot be changed afterwards. Are you sure?
+              Provide a resolution note — this will be shown to the client as a final notification. The status cannot be changed afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                What was done to resolve this <span className="text-primary">*</span>
+              </label>
+              <Textarea
+                placeholder="Describe what was done to resolve this issue…"
+                rows={3}
+                value={resolutionSummary}
+                onChange={(e) => setResolutionSummary(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                Root cause <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Textarea
+                placeholder="What caused this issue?"
+                rows={2}
+                value={resolutionCause}
+                onChange={(e) => setResolutionCause(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                Prevention steps <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Textarea
+                placeholder="Steps the client should take to avoid this in future…"
+                rows={2}
+                value={resolutionPrevention}
+                onChange={(e) => setResolutionPrevention(e.target.value)}
+              />
+            </div>
+          </div>
+          {resolveError && (
+            <p className="text-xs text-destructive -mt-1">{resolveError}</p>
+          )}
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingStatus) applyStatusChange(pendingStatus);
-                setPendingStatus(null);
-              }}
+            <AlertDialogCancel disabled={isResolving}>Cancel</AlertDialogCancel>
+            <Button
+              disabled={!resolutionSummary.trim() || isResolving}
+              onClick={handleResolveConfirm}
             >
-              Confirm
-            </AlertDialogAction>
+              {isResolving ? 'Saving…' : 'Confirm & Notify Client'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

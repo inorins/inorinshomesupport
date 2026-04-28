@@ -9,6 +9,12 @@ export interface AttachmentMetadata {
   url?: string;
 }
 
+export interface ResolutionNote {
+  summary: string;
+  cause?: string;
+  preventionSteps?: string;
+}
+
 export interface Ticket {
   id: string;
   title: string;
@@ -25,10 +31,16 @@ export interface Ticket {
   lastUpdated: string;
   reporter: string;
   reporterEmail: string;
+  contactName?: string;
+  contactDesignation?: string;
+  contactPhone?: string;
   assignee?: string;
   description: string;
   attachments?: AttachmentMetadata[];
   createdAt: string;
+  startedAt?: string;
+  resolvedAt?: string;
+  resolutionNote?: ResolutionNote;
 }
 
 export interface ChatMessage {

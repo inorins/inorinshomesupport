@@ -1,4 +1,4 @@
-import type { Ticket, ChatMessage } from '@/data/mockData';
+import type { Ticket, ChatMessage, ResolutionNote } from '@/data/mockData';
 import type { AppUser } from '@/data/users';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
@@ -79,6 +79,8 @@ export const api = {
     request<Ticket>(`/tickets/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   assignTicket: (id: string, assignee: string) =>
     request<Ticket>(`/tickets/${id}/assign`, { method: 'PATCH', body: JSON.stringify({ assignee }) }),
+  resolveTicket: (id: string, status: 'Resolved' | 'Closed', resolutionNote: ResolutionNote) =>
+    request<Ticket>(`/tickets/${id}/resolve`, { method: 'PATCH', body: JSON.stringify({ status, resolutionNote }) }),
 
   // Messages
   getMessages: (ticketId: string) =>

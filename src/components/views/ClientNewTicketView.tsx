@@ -31,6 +31,10 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('');
 
+  const [contactName, setContactName] = useState(user?.name ?? '');
+  const [contactDesignation, setContactDesignation] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+
   const [system, setSystem] = useState('');
   const [module, setModule] = useState('');
   const [moduleDetails, setModuleDetails] = useState('');
@@ -46,7 +50,9 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
   const handleSystemChange = (v: string) => { setSystem(v); setModule(''); setForm(''); };
   const handleModuleChange = (v: string) => { setModule(v); setForm(''); };
 
-  const canNextStep1 = requestType.length > 0 && title.trim().length > 0 && (requestType === 'Issue' ? priority.length > 0 : true);
+  const canNextStep1 = requestType.length > 0 && title.trim().length > 0 &&
+    (requestType === 'Issue' ? priority.length > 0 : true) &&
+    contactName.trim().length > 0 && contactDesignation.trim().length > 0 && contactPhone.trim().length > 0;
   const canNextStep2 = system.length > 0 && module.length > 0 && form.length > 0;
   const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
   const ACCEPTED_ATTACHMENT_TYPES = [
@@ -66,7 +72,9 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
     setTitle('');
     setDescription('');
     setPriority('');
-
+    setContactName(user?.name ?? '');
+    setContactDesignation('');
+    setContactPhone('');
     setSystem('');
     setModule('');
     setModuleDetails('');
@@ -154,6 +162,9 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
         environment: 'Production',
         reporter: user?.name,
         reporterEmail: user?.email,
+        contactName: contactName.trim(),
+        contactDesignation: contactDesignation.trim(),
+        contactPhone: contactPhone.trim(),
         attachments: attachmentsPayload,
       });
       await Promise.all([
@@ -300,6 +311,35 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
               </Select>
             </div>
           )}
+
+          {/* Contact Person */}
+          <div className="pt-3 border-t border-border space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact Person for this ticket</p>
+            <div className="space-y-1.5">
+              <Label>Name <span className="text-primary">*</span></Label>
+              <Input
+                placeholder="Full name"
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Designation <span className="text-primary">*</span></Label>
+              <Input
+                placeholder="e.g. IT Manager, System Admin"
+                value={contactDesignation}
+                onChange={(e) => setContactDesignation(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone Number <span className="text-primary">*</span></Label>
+              <Input
+                placeholder="e.g. +977-9801234567"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       )}
 

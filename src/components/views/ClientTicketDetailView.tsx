@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Paperclip, Send, Clock, User, Monitor, Tag } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, Clock, User, Monitor, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -148,91 +148,148 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
               </p>
             </div>
           )}
+
         </div>
 
-        {/* Right Panel - Chat */}
+        {/* Right Panel */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-          <div className="px-5 py-3 border-b border-border bg-card shrink-0">
-            <h3 className="text-sm font-semibold text-foreground">Support Conversation</h3>
-            <p className="text-xs text-muted-foreground">Messages between you and the Inorins support team</p>
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 scrollbar-thin">
-            {msgsLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className={cn('max-w-[80%] space-y-2', i % 2 === 0 ? '' : 'ml-auto')}>
-                  <div className="h-16 bg-muted rounded-lg animate-pulse" />
+          {ticket.resolutionNote && (ticket.status === 'Resolved' || ticket.status === 'Closed') ? (
+            /* Resolution Panel */
+            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-8 scrollbar-thin">
+              {/* Hero */}
+              <div className="flex flex-col items-center text-center mb-8">
+                <div className="h-16 w-16 rounded-full bg-success/15 flex items-center justify-center mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-success" />
                 </div>
-              ))
-            ) : visibleMessages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                <p className="text-sm text-muted-foreground">No messages yet.</p>
-                <p className="text-xs text-muted-foreground mt-1">Send a message to start the conversation.</p>
+                <h2 className="text-xl font-bold text-foreground">
+                  {ticket.status === 'Closed' ? 'Ticket Closed' : 'Issue Resolved'}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {ticket.status === 'Closed'
+                    ? 'This ticket has been closed by the support team.'
+                    : 'The Inorins support team has resolved your issue.'}
+                </p>
+                {ticket.resolvedAt && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(ticket.resolvedAt).toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' })}
+                  </p>
+                )}
               </div>
-            ) : (
-              visibleMessages.map((msg) => {
-                const isMe = msg.role === 'client';
-                return (
-                  <div key={msg.id} className={cn('max-w-[80%]', isMe ? 'ml-auto' : '')}>
-                    <div
-                      className={cn(
-                        'rounded-lg px-4 py-3 text-sm',
-                        isMe
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-surface border border-border text-foreground'
-                      )}
-                    >
-                      <p className={cn('text-xs font-semibold mb-1', isMe ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
-                        {isMe ? (user?.name ?? msg.author) : `Inorins Support · ${msg.author}`}
-                      </p>
-                      <p className="leading-relaxed">{msg.content}</p>
-                    </div>
-                    <p className={cn('text-[10px] text-muted-foreground mt-1', isMe ? 'text-right' : '')}>
-                      {msg.timestamp}
-                    </p>
+
+              {/* Resolution cards */}
+              <div className="max-w-2xl w-full mx-auto space-y-4">
+                <div className="rounded-xl bg-success/8 border border-success/25 p-6">
+                  <p className="text-xs font-semibold text-success uppercase tracking-wider mb-2">Resolution Summary</p>
+                  <p className="text-sm text-foreground leading-relaxed">{ticket.resolutionNote.summary}</p>
+                </div>
+
+                {ticket.resolutionNote.cause && (
+                  <div className="rounded-xl bg-card border border-border p-6">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Root Cause</p>
+                    <p className="text-sm text-foreground leading-relaxed">{ticket.resolutionNote.cause}</p>
                   </div>
-                );
-              })
-            )}
-          </div>
+                )}
 
-          {/* Reply box */}
-          {ticket.status !== 'Closed' && (
-            <div className="border-t border-border p-4 shrink-0 bg-card">
-              {sendError ? (
-              <p className="text-xs text-destructive mb-2">{sendError}</p>
-            ) : null}
-            <div className="flex gap-2">
-                <Textarea
-                  placeholder="Type your message to the support team…"
-                  rows={2}
-                  className="flex-1 resize-none text-sm"
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend();
-                  }}
-                />
-                <Button
-                  size="icon"
-                  className="self-end shrink-0 h-10 w-10"
-                  onClick={handleSend}
-                  disabled={isSending || !replyText.trim()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+                {ticket.resolutionNote.preventionSteps && (
+                  <div className="rounded-xl bg-card border border-border p-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">How to Prevent This</p>
+                    </div>
+                    <p className="text-sm text-foreground leading-relaxed">{ticket.resolutionNote.preventionSteps}</p>
+                  </div>
+                )}
+
+                <div className="pt-2 text-center">
+                  <p className="text-xs text-muted-foreground mb-3">Need more help with this issue?</p>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/client/tickets/new')}>
+                    Open a New Ticket
+                  </Button>
+                </div>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1.5">Press Ctrl+Enter to send</p>
             </div>
-          )}
+          ) : (
+            /* Chat Panel */
+            <>
+              <div className="px-5 py-3 border-b border-border bg-card shrink-0">
+                <h3 className="text-sm font-semibold text-foreground">Support Conversation</h3>
+                <p className="text-xs text-muted-foreground">Messages between you and the Inorins support team</p>
+              </div>
 
-          {ticket.status === 'Closed' && (
-            <div className="border-t border-border p-4 shrink-0 bg-surface">
-              <p className="text-xs text-center text-muted-foreground">
-                This ticket is closed. <button className="text-primary hover:underline" onClick={() => navigate('/client/tickets/new')}>Open a new ticket</button> if you need further assistance.
-              </p>
-            </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 scrollbar-thin">
+                {msgsLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className={cn('max-w-[80%] space-y-2', i % 2 === 0 ? '' : 'ml-auto')}>
+                      <div className="h-16 bg-muted rounded-lg animate-pulse" />
+                    </div>
+                  ))
+                ) : visibleMessages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                    <p className="text-sm text-muted-foreground">No messages yet.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Send a message to start the conversation.</p>
+                  </div>
+                ) : (
+                  visibleMessages.map((msg) => {
+                    const isMe = msg.role === 'client';
+                    return (
+                      <div key={msg.id} className={cn('max-w-[80%]', isMe ? 'ml-auto' : '')}>
+                        <div
+                          className={cn(
+                            'rounded-lg px-4 py-3 text-sm',
+                            isMe
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-surface border border-border text-foreground'
+                          )}
+                        >
+                          <p className={cn('text-xs font-semibold mb-1', isMe ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+                            {isMe ? (user?.name ?? msg.author) : `Inorins Support · ${msg.author}`}
+                          </p>
+                          <p className="leading-relaxed">{msg.content}</p>
+                        </div>
+                        <p className={cn('text-[10px] text-muted-foreground mt-1', isMe ? 'text-right' : '')}>
+                          {msg.timestamp}
+                        </p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {ticket.status !== 'Closed' && (
+                <div className="border-t border-border p-4 shrink-0 bg-card">
+                  {sendError ? <p className="text-xs text-destructive mb-2">{sendError}</p> : null}
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Type your message to the support team…"
+                      rows={2}
+                      className="flex-1 resize-none text-sm"
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend();
+                      }}
+                    />
+                    <Button
+                      size="icon"
+                      className="self-end shrink-0 h-10 w-10"
+                      onClick={handleSend}
+                      disabled={isSending || !replyText.trim()}
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">Press Ctrl+Enter to send</p>
+                </div>
+              )}
+
+              {ticket.status === 'Closed' && (
+                <div className="border-t border-border p-4 shrink-0 bg-surface">
+                  <p className="text-xs text-center text-muted-foreground">
+                    This ticket is closed. <button className="text-primary hover:underline" onClick={() => navigate('/client/tickets/new')}>Open a new ticket</button> if you need further assistance.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

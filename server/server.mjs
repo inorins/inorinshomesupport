@@ -18,7 +18,7 @@ const ROLES = new Set(["inorins", "client"]);
 const MESSAGE_ROLES = new Set(["employee", "client"]);
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.pdf', '.csv', '.xls', '.xlsx', '.txt', '.log']);
 
-const FIELD_MAX_LENGTHS = { title: 200, description: 5000, moduleDetails: 2000, reporter: 100, reporterEmail: 200, content: 10000 };
+const FIELD_MAX_LENGTHS = { title: 200, description: 5000, moduleDetails: 2000, reporter: 100, reporterEmail: 200, content: 10000, contactName: 100, contactDesignation: 100, contactPhone: 30, resolutionSummary: 3000, resolutionCause: 3000, resolutionPrevention: 3000 };
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4173').split(',');
 
@@ -455,6 +455,10 @@ app.post("/api/tickets", async (req, res, next) => {
       }
     }
 
+    const contactName = typeof payload.contactName === 'string' ? payload.contactName.trim().slice(0, FIELD_MAX_LENGTHS.contactName) : '';
+    const contactDesignation = typeof payload.contactDesignation === 'string' ? payload.contactDesignation.trim().slice(0, FIELD_MAX_LENGTHS.contactDesignation) : '';
+    const contactPhone = typeof payload.contactPhone === 'string' ? payload.contactPhone.trim().slice(0, FIELD_MAX_LENGTHS.contactPhone) : '';
+
     const ticket = {
       id: ticketId,
       title,
@@ -470,6 +474,9 @@ app.post("/api/tickets", async (req, res, next) => {
       environment,
       reporter: String(payload.reporter ?? "Unknown Reporter"),
       reporterEmail: String(payload.reporterEmail ?? "unknown@inorins.local"),
+      contactName: contactName || undefined,
+      contactDesignation: contactDesignation || undefined,
+      contactPhone: contactPhone || undefined,
       assignee: "",
       description: String(payload.description ?? ""),
       attachments,
@@ -500,10 +507,52 @@ app.patch("/api/tickets/:id/status", async (req, res, next) => {
       return;
     }
 
+    const now = new Date().toISOString();
+    const updated = await updateTicketById(req.params.id, (ticket) => {
+      const update = { ...ticket, status, updatedAt: now };
+      if (status === 'In Progress' && !ticket.startedAt) update.startedAt = now;
+      return update;
+    });
+
+    if (!updated) {
+      res.status(404).json({ message: "Ticket not found." });
+      return;
+    }
+
+    res.json(withLastUpdated(updated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch("/api/tickets/:id/resolve", async (req, res, next) => {
+  try {
+    const status = req.body?.status;
+    if (!['Resolved', 'Closed'].includes(status)) {
+      res.status(400).json({ message: "Status must be Resolved or Closed." });
+      return;
+    }
+
+    const note = req.body?.resolutionNote;
+    const summary = typeof note?.summary === 'string' ? note.summary.trim() : '';
+    if (!summary) {
+      res.status(400).json({ message: "Resolution summary is required." });
+      return;
+    }
+
+    const resolvedAt = new Date().toISOString();
+    const resolutionNote = {
+      summary: summary.slice(0, FIELD_MAX_LENGTHS.resolutionSummary),
+      ...(typeof note.cause === 'string' && note.cause.trim() ? { cause: note.cause.trim().slice(0, FIELD_MAX_LENGTHS.resolutionCause) } : {}),
+      ...(typeof note.preventionSteps === 'string' && note.preventionSteps.trim() ? { preventionSteps: note.preventionSteps.trim().slice(0, FIELD_MAX_LENGTHS.resolutionPrevention) } : {}),
+    };
+
     const updated = await updateTicketById(req.params.id, (ticket) => ({
       ...ticket,
       status,
-      updatedAt: new Date().toISOString(),
+      resolutionNote,
+      resolvedAt: ticket.resolvedAt ?? resolvedAt,
+      updatedAt: resolvedAt,
     }));
 
     if (!updated) {
