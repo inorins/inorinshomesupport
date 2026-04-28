@@ -8,7 +8,7 @@
     "form": "Others",
     "requestType": "Issue",
     "priority": "High",
-    "status": "Open",
+    "status": "Resolved",
     "environment": "Production",
     "reporter": "Gaurav Shrestha",
     "reporterEmail": "gaurav@inorins.com",
@@ -16,7 +16,11 @@
     "description": "initial charge errro \ncustomer balance is 0\nbut mobile bank is not open",
     "attachments": [],
     "createdAt": "2026-04-27",
-    "updatedAt": "2026-04-27T05:57:40.554Z"
+    "updatedAt": "2026-04-28T08:13:28.892Z",
+    "resolutionNote": {
+      "summary": "Changed in the xyz form and the issue was brought to fix"
+    },
+    "resolvedAt": "2026-04-28T08:13:28.892Z"
   },
   {
     "id": "TKT-2406",
