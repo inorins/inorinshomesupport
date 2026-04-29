@@ -737,9 +737,9 @@ setInterval(() => {
 const port = Number(process.env.API_PORT || 3500);
 migratePasswordsIfNeeded()
   .then(() => {
-    app.listen(port, () => {
-      console.log(`JSON API listening on http://localhost:${port}`);
-    });
+    app.listen(port, '0.0.0.0', () => {
+  console.log("Server running on port 3500");
+});
   })
   .catch((err) => {
     console.error('Startup failed during password migration:', err);
