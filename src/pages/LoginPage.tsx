@@ -70,19 +70,7 @@ export function LoginPage() {
             One platform for Inorins support teams and client banks to collaborate, track issues, and resolve them — fast.
           </p>
 
-          <div className="space-y-2">
-            <p className="text-[10px] uppercase tracking-widest font-semibold text-sidebar-foreground/60 mb-3">
-              Client Banks
-            </p>
-            {clientUsers.map((u) => (
-              <div key={u.id} className="flex items-center gap-2.5 py-1.5">
-                <div className="h-7 w-7 rounded-full bg-sidebar-primary/20 flex items-center justify-center">
-                  <Building2 className="h-3.5 w-3.5 text-sidebar-primary" />
-                </div>
-                <span className="text-sm text-sidebar-foreground">{u.bankName}</span>
-              </div>
-            ))}
-          </div>
+         
         </div>
 
         <p className="text-xs text-sidebar-foreground/40">
