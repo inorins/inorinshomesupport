@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import express from "express";
 import fs from "fs/promises";
+import { createReadStream } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -133,35 +134,33 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '50mb' }));
 
-// Middleware to set proper Content-Type headers for file downloads
+// Serve uploads with proper Content-Type headers and caching disabled
 app.use('/uploads', (req, res, next) => {
-  const filename = req.path.split('/').pop() || '';
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  
-  // Map file extensions to MIME types
-  const mimeTypes = {
-    'pdf': 'application/pdf',
-    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'xls': 'application/vnd.ms-excel',
-    'csv': 'text/csv',
-    'txt': 'text/plain',
-    'log': 'text/plain',
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-  };
-  
-  const mimeType = mimeTypes[ext];
-  if (mimeType) {
-    res.setHeader('Content-Type', mimeType);
-  }
-  
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   next();
-});
-
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+}, express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.pdf': 'application/pdf',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xls': 'application/vnd.ms-excel',
+      '.csv': 'text/csv; charset=utf-8',
+      '.txt': 'text/plain',
+      '.log': 'text/plain',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+    };
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(filePath)}"`);
+  }
+}));
 
 function sanitizeUser(user) {
   if (!user) {
@@ -477,7 +476,7 @@ app.post("/api/tickets", async (req, res, next) => {
             const base64 = item.content.split(',').pop() ?? '';
             const buffer = Buffer.from(base64, 'base64');
             await fs.writeFile(filePath, buffer);
-            attachment.url = `/uploads/${ticketId}/${encodeURIComponent(savedName)}`;
+            attachment.url = `/api/download/${ticketId}/${encodeURIComponent(savedName)}`;
           }
 
           attachments.push(attachment);
@@ -702,6 +701,55 @@ app.get("/api/stats", async (_req, res, next) => {
       resolvedThisWeek,
       pendingOurAction,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Download file endpoint with proper streaming
+app.get("/api/download/:ticketId/:filename", async (req, res, next) => {
+  try {
+    const { ticketId, filename } = req.params;
+    const filePath = path.join(__dirname, 'uploads', ticketId, decodeURIComponent(filename));
+    
+    // Security check: ensure path is within uploads/ticketId directory
+    const resolvedPath = path.resolve(filePath);
+    const uploadDir = path.resolve(path.join(__dirname, 'uploads', ticketId));
+    if (!resolvedPath.startsWith(uploadDir)) {
+      res.status(403).json({ message: "Access denied." });
+      return;
+    }
+    
+    // Check if file exists
+    try {
+      await fs.access(filePath);
+    } catch {
+      res.status(404).json({ message: "File not found." });
+      return;
+    }
+    
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypes = {
+      '.pdf': 'application/pdf',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xls': 'application/vnd.ms-excel',
+      '.csv': 'text/csv; charset=utf-8',
+      '.txt': 'text/plain',
+      '.log': 'text/plain',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+    };
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+    
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${decodeURIComponent(filename)}"`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    const fileStream = createReadStream(filePath);
+    fileStream.pipe(res);
   } catch (error) {
     next(error);
   }
