@@ -28,5 +28,9 @@ test-results/
 *.sln
 *.sw?
 
+messages.json
+tickets.json
+server/data/messages.json
+server/data/tickets.json
 
 server/uploads/
