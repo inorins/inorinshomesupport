@@ -21,7 +21,7 @@ const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.pdf', '.cs
 const FIELD_MAX_LENGTHS = { title: 200, description: 5000, moduleDetails: 2000, reporter: 100, reporterEmail: 200, content: 10000, contactName: 100, contactDesignation: 100, contactPhone: 30, resolutionSummary: 3000, resolutionCause: 3000, resolutionPrevention: 3000 };
 
 // const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://inorins.com.np,http://103.90.86.252:5173,https://103.90.86.252:5173').split(',');
-const ALLOWED_ORIGINS = '*'.split(','); // allow all origins for demo purposes; replace with specific origins in production
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*').split(','); // allow all origins for demo purposes; replace with specific origins in production
 
 // ─── Password hashing (C1/C2) ───────────────────────────────────────────────
 const SCRYPT_KEYLEN = 64;
