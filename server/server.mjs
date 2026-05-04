@@ -134,6 +134,33 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '5mb' }));
+
+// Middleware to set proper Content-Type headers for file downloads
+app.use('/uploads', (req, res, next) => {
+  const filename = req.path.split('/').pop() || '';
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  
+  // Map file extensions to MIME types
+  const mimeTypes = {
+    'pdf': 'application/pdf',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'xls': 'application/vnd.ms-excel',
+    'csv': 'text/csv',
+    'txt': 'text/plain',
+    'log': 'text/plain',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+  };
+  
+  const mimeType = mimeTypes[ext];
+  if (mimeType) {
+    res.setHeader('Content-Type', mimeType);
+  }
+  
+  next();
+});
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 function sanitizeUser(user) {
