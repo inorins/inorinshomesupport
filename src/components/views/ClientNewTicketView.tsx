@@ -1,10 +1,12 @@
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
-import { Upload, FileText, Send, CheckCircle } from 'lucide-react';
+import { Upload, FileText, Send, CheckCircle, ChevronsUpDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 import { systemModules } from '@/data/mockData';
 import { api } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +18,51 @@ interface ClientNewTicketViewProps {
 }
 
 const STEPS = ['Issue Details', 'System & Module', 'Attachments'];
+
+interface SearchableComboboxProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+function SearchableCombobox({ value, onChange, options, placeholder, disabled }: SearchableComboboxProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          disabled={disabled}
+          className={cn('w-full justify-between font-normal', !value && 'text-muted-foreground')}
+        >
+          {value || placeholder}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Type to search..." />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
+            {options.map((opt) => (
+              <CommandItem
+                key={opt}
+                value={opt}
+                onSelect={(v) => { onChange(v); setOpen(false); }}
+              >
+                <Check className={cn('mr-2 h-4 w-4', value === opt ? 'opacity-100' : 'opacity-0')} />
+                {opt}
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
   const { user } = useAuth();
@@ -366,23 +413,23 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
           </div>
           <div className="space-y-1.5">
             <Label>Module <span className="text-primary">*</span></Label>
-            <Select value={module} onValueChange={handleModuleChange} disabled={!system}>
-              <SelectTrigger><SelectValue placeholder={system ? 'Select module' : 'Select a system first'} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Not sure">Not sure / not mentioned yet</SelectItem>
-                {modules.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableCombobox
+              value={module}
+              onChange={handleModuleChange}
+              options={['Not sure / not mentioned yet', ...modules]}
+              placeholder={system ? 'Select or type module' : 'Select a system first'}
+              disabled={!system}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>{requestType === 'Add Report' ? 'Report Type / Area' : 'Form / Screen'} <span className="text-primary">*</span></Label>
-            <Select value={form} onValueChange={setForm} disabled={!system}>
-              <SelectTrigger><SelectValue placeholder={system ? 'Select form or report area' : 'Select a system first'} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Not sure">Not sure / not mentioned yet</SelectItem>
-                {forms.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableCombobox
+              value={form}
+              onChange={setForm}
+              options={['Not sure / not mentioned yet', ...forms]}
+              placeholder={system ? 'Select or type form' : 'Select a system first'}
+              disabled={!system}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Module description</Label>

@@ -130,7 +130,7 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
                     <Paperclip className="h-4 w-4 text-primary" />
                     <span className="text-sm text-foreground truncate flex-1">{att.name}</span>
                     {att.url ? (
-                      <a href={att.url} target="_blank" rel="noreferrer" download={att.name} className="text-xs text-primary hover:underline shrink-0">View</a>
+                      <a href={att.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline shrink-0">View</a>
                     ) : null}
                   </div>
                 ))}
@@ -199,6 +199,26 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
                     <p className="text-sm text-foreground leading-relaxed">{ticket.resolutionNote.preventionSteps}</p>
                   </div>
                 )}
+
+                {ticket.resolutionNote.attachments?.length ? (
+                  <div className="rounded-xl bg-card border border-border p-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Resolution Attachments</p>
+                    </div>
+                    <div className="space-y-2">
+                      {ticket.resolutionNote.attachments.map((att) => (
+                        <div key={att.name} className="flex items-center gap-2.5 p-2.5 bg-surface rounded-lg border border-border">
+                          <Paperclip className="h-4 w-4 text-primary shrink-0" />
+                          <span className="text-sm text-foreground truncate flex-1">{att.name}</span>
+                          {att.url && (
+                            <a href={att.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline shrink-0 font-medium">View</a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="pt-2 text-center">
                   <p className="text-xs text-muted-foreground mb-3">Need more help with this issue?</p>

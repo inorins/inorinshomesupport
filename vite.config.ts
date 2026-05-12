@@ -8,11 +8,11 @@ export default defineConfig({
     port: 8080,
     proxy: {
       "/api": {
-        target: "http://103.90.86.252",
+        target: "http://127.0.0.1:3500",
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://103.90.86.252",
+        target: "http://127.0.0.1:3500",
         changeOrigin: true,
       },
     },

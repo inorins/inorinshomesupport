@@ -5,11 +5,59 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileText } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
+import { Upload, FileText, ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { systemModules } from '@/data/mockData';
 import { api } from '@/services/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
+
+interface SearchableComboboxProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+function SearchableCombobox({ value, onChange, options, placeholder, disabled }: SearchableComboboxProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          disabled={disabled}
+          className={cn('w-full justify-between font-normal', !value && 'text-muted-foreground')}
+        >
+          {value || placeholder}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Type to search..." />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
+            {options.map((opt) => (
+              <CommandItem
+                key={opt}
+                value={opt}
+                onSelect={(v) => { onChange(v); setOpen(false); }}
+              >
+                <Check className={cn('mr-2 h-4 w-4', value === opt ? 'opacity-100' : 'opacity-0')} />
+                {opt}
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface CreateTicketModalProps {
   open: boolean;
@@ -270,25 +318,23 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
             </div>
             <div className="space-y-2">
               <Label>Module</Label>
-              <Select value={module} onValueChange={handleModuleChange} disabled={!system}>
-                <SelectTrigger><SelectValue placeholder={system ? 'Select module' : 'Select a system first'} /></SelectTrigger>
-                <SelectContent>
-                  {modules.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableCombobox
+                value={module}
+                onChange={handleModuleChange}
+                options={modules}
+                placeholder={system ? 'Select or type module' : 'Select a system first'}
+                disabled={!system}
+              />
             </div>
             <div className="space-y-2">
               <Label>Form</Label>
-              <Select value={form} onValueChange={setForm} disabled={!module}>
-                <SelectTrigger><SelectValue placeholder={module ? 'Select form' : 'Select a module first'} /></SelectTrigger>
-                <SelectContent>
-                  {forms.map((f) => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableCombobox
+                value={form}
+                onChange={setForm}
+                options={forms}
+                placeholder={module ? 'Select or type form' : 'Select a module first'}
+                disabled={!module}
+              />
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag, Phone, Briefcase, CheckCircle2, Timer,
 } from 'lucide-react';
@@ -96,8 +96,10 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const [resolutionSummary, setResolutionSummary] = useState('');
   const [resolutionCause, setResolutionCause] = useState('');
   const [resolutionPrevention, setResolutionPrevention] = useState('');
+  const [resolutionFiles, setResolutionFiles] = useState<File[]>([]);
   const [resolveError, setResolveError] = useState('');
   const [isResolving, setIsResolving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const displayStatus = (currentStatus || ticket?.status) as TicketStatus;
   const displayAssignee = currentAssignee || ticket?.assignee || 'Unassigned';
@@ -179,10 +181,19 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
     setIsResolving(true);
     setResolveError('');
     try {
+      const attachmentsPayload = await Promise.all(
+        resolutionFiles.map((file) => new Promise<{ name: string; size: number; type: string; content: string }>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve({ name: file.name, size: file.size, type: file.type, content: e.target?.result as string });
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        }))
+      );
       await api.resolveTicket(ticket.id, pendingStatus as 'Resolved' | 'Closed', {
         summary: resolutionSummary.trim(),
         cause: resolutionCause.trim() || undefined,
         preventionSteps: resolutionPrevention.trim() || undefined,
+        attachments: attachmentsPayload.length > 0 ? attachmentsPayload : undefined,
       });
       setCurrentStatus(pendingStatus);
       await Promise.all([
@@ -190,11 +201,11 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
         queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] }),
         queryClient.invalidateQueries({ queryKey: ['stats'] }),
       ]);
-      // Close dialog only after success
       setPendingStatus(null);
       setResolutionSummary('');
       setResolutionCause('');
       setResolutionPrevention('');
+      setResolutionFiles([]);
     } catch {
       setResolveError('Failed to save resolution. Please try again.');
     } finally {
@@ -328,6 +339,22 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                     <p className="text-xs text-foreground leading-relaxed">{ticket.resolutionNote.preventionSteps}</p>
                   </div>
                 )}
+                {ticket.resolutionNote.attachments?.length ? (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Attachments</p>
+                    <div className="space-y-1">
+                      {ticket.resolutionNote.attachments.map((att) => (
+                        <div key={att.name} className="flex items-center gap-2">
+                          <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="text-xs text-foreground truncate flex-1">{att.name}</span>
+                          {att.url && (
+                            <a href={att.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline shrink-0">View</a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </Section>
           )}
@@ -394,7 +421,6 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                           href={attachment.url}
                           target="_blank"
                           rel="noreferrer"
-                          download={attachment.name}
                           className="text-xs text-primary hover:underline"
                         >
                           View
@@ -508,6 +534,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
           setResolutionSummary('');
           setResolutionCause('');
           setResolutionPrevention('');
+          setResolutionFiles([]);
           setResolveError('');
         }
       }}>
@@ -551,6 +578,43 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                 value={resolutionPrevention}
                 onChange={(e) => setResolutionPrevention(e.target.value)}
               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                Attachments <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".png,.jpg,.jpeg,.pdf,.csv,.xls,.xlsx,.txt,.log"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    setResolutionFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <Button type="button" variant="outline" size="sm" className="text-xs h-8" onClick={() => fileInputRef.current?.click()}>
+                <Paperclip className="h-3.5 w-3.5 mr-1.5" />
+                Attach File
+              </Button>
+              {resolutionFiles.length > 0 && (
+                <div className="space-y-1 mt-1">
+                  {resolutionFiles.map((file, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-xs bg-muted/50 rounded px-2 py-1.5">
+                      <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="flex-1 truncate text-foreground">{file.name}</span>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={() => setResolutionFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {resolveError && (

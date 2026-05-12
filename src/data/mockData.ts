@@ -13,6 +13,7 @@ export interface ResolutionNote {
   summary: string;
   cause?: string;
   preventionSteps?: string;
+  attachments?: Array<AttachmentMetadata & { content?: string }>;
 }
 
 export interface Ticket {

@@ -570,10 +570,35 @@ app.patch("/api/tickets/:id/resolve", async (req, res, next) => {
     }
 
     const resolvedAt = new Date().toISOString();
+
+    const attachments = [];
+    if (Array.isArray(note.attachments)) {
+      const uploadDir = path.join(__dirname, 'uploads', req.params.id);
+      await fs.mkdir(uploadDir, { recursive: true });
+      for (const item of note.attachments) {
+        if (item && typeof item.name === 'string' && typeof item.size === 'number' && typeof item.type === 'string') {
+          const attachment = { name: item.name, size: item.size, type: item.type };
+          if (typeof item.content === 'string') {
+            const safeName = path.basename(item.name).replace(/[^a-zA-Z0-9._-]/g, '_');
+            const ext = path.extname(safeName).toLowerCase();
+            if (!ALLOWED_UPLOAD_EXTENSIONS.has(ext)) continue;
+            const savedName = `resolution-${Date.now()}-${safeName}`;
+            const filePath = path.join(uploadDir, savedName);
+            if (!path.resolve(filePath).startsWith(path.resolve(uploadDir))) continue;
+            const base64 = item.content.split(',').pop() ?? '';
+            await fs.writeFile(filePath, Buffer.from(base64, 'base64'));
+            attachment.url = `/api/download/${req.params.id}/${encodeURIComponent(savedName)}`;
+          }
+          attachments.push(attachment);
+        }
+      }
+    }
+
     const resolutionNote = {
       summary: summary.slice(0, FIELD_MAX_LENGTHS.resolutionSummary),
       ...(typeof note.cause === 'string' && note.cause.trim() ? { cause: note.cause.trim().slice(0, FIELD_MAX_LENGTHS.resolutionCause) } : {}),
       ...(typeof note.preventionSteps === 'string' && note.preventionSteps.trim() ? { preventionSteps: note.preventionSteps.trim().slice(0, FIELD_MAX_LENGTHS.resolutionPrevention) } : {}),
+      ...(attachments.length > 0 ? { attachments } : {}),
     };
 
     const updated = await updateTicketById(req.params.id, (ticket) => ({
@@ -743,7 +768,7 @@ app.get("/api/download/:ticketId/:filename", async (req, res, next) => {
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
     
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${decodeURIComponent(filename)}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${decodeURIComponent(filename)}"`);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
