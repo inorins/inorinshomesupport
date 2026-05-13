@@ -35,7 +35,7 @@
     "id": "u-inorins-5",
     "name": "Slok Regmi",
     "email": "slok@inorins.com",
-    "password": "scrypt$04137e1257e2ed6eeca529f7a920602d$9ae2ba0d87c08d1477b1037b94998f390a97c67de1bdf4cafbdd47faae2fdee2f940af9efbd8f22946fd2ed9c033e7180d0063408a58d2f76b06771bd2e3a981",
+    "password": "slok@123",
     "role": "inorins",
     "title": "Support Engineer"
   },
@@ -112,5 +112,27 @@
     "bankName": "Shree Finance",
     "bankDomain": "shreefinance.com.np",
     "bankShortCode": "SF"
+  },
+    {
+    "id": "u-client-7",
+    "name": "Durdristi Admin",
+    "email": "admin@durdristi.com.np",
+    "password": "durdristi@123",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Durdristi",
+    "bankDomain": "durdristi.com.np",
+    "bankShortCode": "DD"
+  },
+    {
+    "id": "u-client-8",
+    "name": "Gurkhas Admin",
+    "email": "admin@gurkhas.com.np",
+    "password": "gurkhas@123",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Gurkhas",
+    "bankDomain": "gurkhas.com.np",
+    "bankShortCode": "GH"
   }
 ]
