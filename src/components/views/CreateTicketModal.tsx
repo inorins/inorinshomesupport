@@ -260,6 +260,8 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
                     <SelectItem value="Ganapati">Ganapati</SelectItem>
                     <SelectItem value="Goodwill">Goodwill</SelectItem>
                     <SelectItem value="Shree Finance">Shree Finance</SelectItem>
+                    <SelectItem value="Durdristi">Durdristi</SelectItem>
+                    <SelectItem value="Gurkhas">Gurkhas</SelectItem>
                   </SelectContent>
                 </Select>
               <p className="text-xs text-muted-foreground">Use this field when creating a ticket on behalf of another bank.</p>
