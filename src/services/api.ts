@@ -1,4 +1,4 @@
-import type { Ticket, ChatMessage, ResolutionNote } from '@/data/mockData';
+import type { Ticket, ChatMessage, ResolutionNote, AppNotification } from '@/data/mockData';
 import type { AppUser } from '@/data/users';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
@@ -44,11 +44,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export interface AuthUser extends Omit<AppUser, 'password'> {}
 
+export interface MessageAttachmentPayload {
+  name: string;
+  size: number;
+  type: string;
+  content: string;
+}
+
 export interface SendMessagePayload {
   content: string;
   isInternal: boolean;
   role?: 'employee' | 'client';
   author?: string;
+  attachments?: MessageAttachmentPayload[];
 }
 
 export interface StatsResponse {
@@ -93,4 +101,46 @@ export const api = {
 
   // Stats
   getStats: () => request<StatsResponse>('/stats'),
+
+  // Forward
+  forwardTicket: (ticketId: string, forwardedTo: string, forwardedBy: string, forwardNote?: string) =>
+    request<Ticket>(`/tickets/${ticketId}/forward`, {
+      method: 'PATCH',
+      body: JSON.stringify({ forwardedTo, forwardedBy, forwardNote }),
+    }),
+  clearForward: (ticketId: string) =>
+    request<Ticket>(`/tickets/${ticketId}/forward`, { method: 'DELETE' }),
+
+  // Account
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  // Archive (admin only)
+  getArchive: () => request<Ticket[]>('/archive'),
+
+  // Notifications
+  getNotifications: () => request<AppNotification[]>('/notifications'),
+  markAllNotificationsRead: () => request<{ ok: boolean }>('/notifications/read-all', { method: 'PATCH' }),
+  markNotificationRead: (id: string) => request<{ ok: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
+
+  // Client ticket edit
+  editTicket: (id: string, data: Partial<Ticket>) =>
+    request<Ticket>(`/tickets/${id}/edit`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  // Admin user management
+  getAdminUsers: () => request<AppUser[]>('/admin/users'),
+  createUser: (data: Partial<AppUser> & { password: string }) =>
+    request<AppUser>('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUser: (id: string, data: Partial<AppUser> & { isActive?: boolean }) =>
+    request<AppUser>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  resetUserPassword: (id: string, newPassword: string) =>
+    request<{ message: string }>(`/admin/users/${id}/reset-password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ newPassword }),
+    }),
+  deactivateUser: (id: string) =>
+    request<{ message: string }>(`/admin/users/${id}`, { method: 'DELETE' }),
 };

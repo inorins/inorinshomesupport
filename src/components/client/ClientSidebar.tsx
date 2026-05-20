@@ -1,6 +1,7 @@
-import { LayoutList, PlusCircle, HelpCircle } from 'lucide-react';
+import { LayoutList, PlusCircle, HelpCircle, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
+import { NotificationBell } from '@/components/ui/NotificationBell';
 
 interface ClientSidebarProps {
   activeView: string;
@@ -12,6 +13,7 @@ const navItems = [
   { id: 'my-tickets', label: 'My Tickets', icon: LayoutList },
   { id: 'new-ticket', label: 'Submit a Ticket', icon: PlusCircle },
   { id: 'faq', label: 'FAQ & Guides', icon: HelpCircle },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export function ClientSidebar({ activeView, onNavigate, openTicketCount }: ClientSidebarProps) {
@@ -24,10 +26,11 @@ export function ClientSidebar({ activeView, onNavigate, openTicketCount }: Clien
         <div className="h-9 w-9 rounded-full bg-sidebar-primary/20 flex items-center justify-center shrink-0">
           <span className="text-xs font-bold text-sidebar-primary">{user?.bankShortCode}</span>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-sidebar-accent-foreground truncate">{user?.bankName}</p>
           <p className="text-[10px] text-sidebar-foreground truncate">Client Portal</p>
         </div>
+        <NotificationBell onNavigateToTicket={(ticketId) => onNavigate(`ticket-${ticketId}`)} />
       </div>
 
       {/* Navigation */}

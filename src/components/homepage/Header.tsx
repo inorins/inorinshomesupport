@@ -60,6 +60,7 @@ export default function Header(): JSX.Element {
           <span className="sr-only">Open main menu</span>
           <svg
             className={`w-6 h-6 ${top ? "text-gray-700" : "text-white"}`}
+            style={{ backgroundColor: '#ffffff', borderRadius: '0.25rem' ,zIndex: 9999}}
             fill="currentColor"
             viewBox="0 0 20 20"
             xmlns="http://www.w3.org/2000/svg"
@@ -85,6 +86,7 @@ export default function Header(): JSX.Element {
           >
             <svg
               className="w-6 h-6 text-gray-300"
+              style={{ backgroundColor: '#ffffff', borderRadius: '0.25rem', zIndex: 9999 }}
               fill="currentColor"
               viewBox="0 0 20 20"
               xmlns="http://www.w3.org/2000/svg"

@@ -6,6 +6,10 @@ import { DashboardView } from '@/components/views/DashboardView';
 import { CreateTicketModal } from '@/components/views/CreateTicketModal';
 import { TeamBoardView } from '@/components/views/TeamBoardView';
 import { TicketDetailView } from '@/components/views/TicketDetailView';
+import { SettingsView } from '@/components/views/SettingsView';
+import { ArchiveView } from '@/components/views/ArchiveView';
+import { AdminUsersView } from '@/components/views/AdminUsersView';
+import { useAuth } from '@/context/AuthContext';
 
 function StaffTicketDetailRoute() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -26,19 +30,28 @@ function StaffTicketDetailRoute() {
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
 
   const [showCreateTicket, setShowCreateTicket] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const isAdmin = user?.email?.toLowerCase() === 'inorins@inorins.com';
 
   const activeView = useMemo(() => {
     const { pathname } = location;
     if (pathname.startsWith('/staff/board')) return 'board';
     if (pathname.startsWith('/staff/settings')) return 'settings';
+    if (pathname.startsWith('/staff/archive')) return 'archive';
+    if (pathname.startsWith('/staff/admin-users')) return 'admin-users';
     if (pathname.startsWith('/staff/tickets')) return 'tickets';
     return 'dashboard';
   }, [location.pathname]);
 
   const handleNavigate = (view: string) => {
+    if (view.startsWith('ticket-')) {
+      navigate(`/staff/tickets/${view.slice(7)}`);
+      return;
+    }
     switch (view) {
       case 'dashboard':
         navigate('/staff/dashboard');
@@ -52,6 +65,12 @@ const Index = () => {
       case 'settings':
         navigate('/staff/settings');
         return;
+      case 'archive':
+        navigate('/staff/archive');
+        return;
+      case 'admin-users':
+        navigate('/staff/admin-users');
+        return;
       default:
         navigate('/staff/dashboard');
     }
@@ -63,7 +82,7 @@ const Index = () => {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-surface">
-      <AppSidebar activeView={activeView} onNavigate={handleNavigate} />
+      <AppSidebar activeView={activeView} onNavigate={handleNavigate} isAdmin={isAdmin} />
       <div className="flex-1 flex flex-col h-screen">
         <AppHeader
           onNewTicket={() => setShowCreateTicket(true)}
@@ -81,15 +100,13 @@ const Index = () => {
               element={<DashboardView onViewTicket={handleViewTicket} searchQuery={searchQuery} />}
             />
             <Route path="board" element={<TeamBoardView onViewTicket={handleViewTicket} />} />
-            <Route
-              path="settings"
-              element={(
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-                  <p className="text-sm text-muted-foreground mt-1">Application settings and configuration</p>
-                </div>
-              )}
-            />
+            <Route path="settings" element={<SettingsView />} />
+            {isAdmin && (
+              <Route path="archive" element={<ArchiveView onViewTicket={handleViewTicket} />} />
+            )}
+            {isAdmin && (
+              <Route path="admin-users" element={<AdminUsersView />} />
+            )}
             <Route path="tickets/:ticketId" element={<StaffTicketDetailRoute />} />
             <Route path="*" element={<Navigate to="/staff/dashboard" replace />} />
           </Routes>

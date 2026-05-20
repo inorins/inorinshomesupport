@@ -1,31 +1,37 @@
-import { LayoutDashboard, Ticket, Users, Settings, Shield, LogOut } from 'lucide-react';
+import { LayoutDashboard, Ticket, Users, Settings, Shield, LogOut, Archive, UserCog } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
+import { NotificationBell } from '@/components/ui/NotificationBell';
 
 interface AppSidebarProps {
   activeView: string;
   onNavigate: (view: string) => void;
+  isAdmin?: boolean;
 }
 
-const navItems = [
+const baseNavItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'tickets', label: 'All Tickets', icon: Ticket },
   { id: 'board', label: 'Team Board', icon: Users },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-export function AppSidebar({ activeView, onNavigate }: AppSidebarProps) {
+export function AppSidebar({ activeView, onNavigate, isAdmin }: AppSidebarProps) {
   const { logout } = useAuth();
+  const navItems = isAdmin
+    ? [...baseNavItems, { id: 'archive', label: 'Archive', icon: Archive }, { id: 'admin-users', label: 'User Management', icon: UserCog }]
+    : baseNavItems;
 
   return (
     <aside className="w-64 h-screen sticky top-0 bg-sidebar flex flex-col border-r border-sidebar-border">
       {/* Brand */}
       <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
         <Shield className="h-7 w-7 text-sidebar-primary mr-2.5 shrink-0" />
-        <div className="flex flex-col">
+        <div className="flex flex-col flex-1">
           <span className="text-sm font-bold tracking-tight text-sidebar-accent-foreground">Inorins</span>
           <span className="text-[10px] font-medium text-sidebar-foreground tracking-widest uppercase">Technologies</span>
         </div>
+        <NotificationBell onNavigateToTicket={(ticketId) => onNavigate(`ticket-${ticketId}`)} />
       </div>
 
       {/* Navigation */}

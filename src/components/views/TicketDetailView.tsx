@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import {
-  ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag, Phone, Briefcase, CheckCircle2, Timer,
+  ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag, Phone, Briefcase, CheckCircle2, Timer, CornerUpRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
 import { useTicket, useTicketMessages } from '@/hooks/useTicketsData';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -87,6 +90,8 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [chatFiles, setChatFiles] = useState<File[]>([]);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentStatus, setCurrentStatus] = useState<TicketStatus | ''>('');
   const [currentAssignee, setCurrentAssignee] = useState<string>('');
@@ -100,6 +105,11 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const [resolveError, setResolveError] = useState('');
   const [isResolving, setIsResolving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardTo, setForwardTo] = useState('');
+  const [forwardNote, setForwardNote] = useState('');
+  const [isForwarding, setIsForwarding] = useState(false);
 
   const displayStatus = (currentStatus || ticket?.status) as TicketStatus;
   const displayAssignee = currentAssignee || ticket?.assignee || 'Unassigned';
@@ -157,13 +167,23 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
     setIsSending(true);
     setSendError('');
     try {
+      const attachmentsPayload = await Promise.all(
+        chatFiles.map((file) => new Promise<{ name: string; size: number; type: string; content: string }>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve({ name: file.name, size: file.size, type: file.type, content: e.target?.result as string });
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        }))
+      );
       await api.sendMessage(ticket.id, {
         content: replyText,
         isInternal,
         author: user?.name,
         role: user?.role === 'client' ? 'client' : 'employee',
+        attachments: attachmentsPayload.length > 0 ? attachmentsPayload : undefined,
       });
       setReplyText('');
+      setChatFiles([]);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['messages', ticket.id] }),
         queryClient.invalidateQueries({ queryKey: ['tickets'] }),
@@ -213,6 +233,46 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
     }
   };
 
+  const handleForwardSend = async () => {
+    if (!forwardTo || !ticket) return;
+    setIsForwarding(true);
+    try {
+      await api.forwardTicket(ticket.id, forwardTo, user?.name ?? 'Team', forwardNote.trim() || undefined);
+      const content = forwardNote.trim()
+        ? `↗ Forwarded to ${forwardTo}\n${forwardNote.trim()}`
+        : `↗ Forwarded to ${forwardTo}`;
+      await api.sendMessage(ticket.id, {
+        content,
+        isInternal: true,
+        author: user?.name,
+        role: 'employee',
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['messages', ticket.id] }),
+        queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] }),
+        queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+      ]);
+      setForwardOpen(false);
+      setForwardTo('');
+      setForwardNote('');
+    } catch {
+      // silently fail; user can retry
+    } finally {
+      setIsForwarding(false);
+    }
+  };
+
+  const handleClearForward = async () => {
+    if (!ticket) return;
+    try {
+      await api.clearForward(ticket.id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] }),
+        queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+      ]);
+    } catch { /* ignore */ }
+  };
+
   if (ticketLoading) {
     return (
       <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
@@ -246,14 +306,65 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
               <span className="text-xs text-muted-foreground">Saving…</span>
             )}
           </div>
-          <h1 className="text-lg font-bold text-foreground mt-1 truncate">{ticket.title}</h1>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <h1 className="text-lg font-bold text-foreground truncate">{ticket.title}</h1>
+          
+            {ticket.isEdited && (
+              <span className="inline-flex shrink-0 items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/25">
+                Edited {ticket.editedAt ? `· ${new Date(ticket.editedAt).toLocaleDateString()}` : ''}
+              </span>
+            )}
+          </div>
         </div>
+        <button
+          onClick={() => setForwardOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
+          title="Forward to a team member"
+        >
+          <CornerUpRight className="h-3.5 w-3.5" />
+          Forward
+        </button>
       </div>
 
       {/* Body */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left Panel - Details */}
         <div className="w-80 border-r border-border bg-surface p-5 shrink-0 space-y-5 overflow-y-auto min-h-0 scrollbar-thin">
+
+        
+
+          {/* Forwarded banner */}
+          {ticket.forwardedTo && (
+            <div className={cn(
+              'rounded-md border px-3 py-2.5 text-xs',
+              user?.name === ticket.forwardedTo
+                ? 'bg-info/8 border-info/30'
+                : 'bg-muted/60 border-border'
+            )}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2 min-w-0">
+                  <CornerUpRight className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', user?.name === ticket.forwardedTo ? 'text-info' : 'text-muted-foreground')} />
+                  <div className="min-w-0">
+                    {user?.name === ticket.forwardedTo ? (
+                      <p className="font-semibold text-info">Forwarded to you</p>
+                    ) : (
+                      <p className="font-semibold text-foreground">Forwarded to {ticket.forwardedTo}</p>
+                    )}
+                    <p className="text-muted-foreground mt-0.5">by {ticket.forwardedBy}</p>
+                    {ticket.forwardNote && (
+                      <p className="mt-1.5 text-foreground leading-relaxed">{ticket.forwardNote}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={handleClearForward}
+                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5"
+                  title="Clear forward"
+                >✕</button>
+              </div>
+            </div>
+          )}
+
           <Section title="Reporter">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">
@@ -458,34 +569,73 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                 </div>
               ))
             ) : (
-              messages.map((msg) => (
+              messages.map((msg) => {
+                const isForwardMsg = msg.isInternal && msg.content.startsWith('↗ Forwarded to ');
+                const forwardLines = isForwardMsg ? msg.content.split('\n') : [];
+                return (
                 <div key={msg.id} className={cn('max-w-[80%]', msg.role === 'employee' ? 'ml-auto' : '')}>
-                  {msg.isInternal && (
+                  {msg.isInternal && !isForwardMsg && (
                     <div className="flex items-center gap-1.5 mb-1 justify-end">
                       <EyeOff className="h-3 w-3 text-warning" />
                       <span className="text-[10px] font-semibold text-warning uppercase tracking-wider">Internal Note</span>
                     </div>
                   )}
+                  {isForwardMsg && (
+                    <div className="flex items-center gap-1.5 mb-1 justify-end">
+                      <CornerUpRight className="h-3 w-3 text-info" />
+                      <span className="text-[10px] font-semibold text-info uppercase tracking-wider">Forwarded</span>
+                    </div>
+                  )}
                   <div
                     className={cn(
                       'rounded-lg px-4 py-3 text-sm',
-                      msg.isInternal
-                        ? 'bg-[hsl(var(--internal-note))] border border-warning/30'
-                        : msg.role === 'employee'
-                          ? 'bg-secondary text-secondary-foreground'
-                          : 'bg-surface border border-border text-foreground'
+                      isForwardMsg
+                        ? 'bg-info/8 border border-info/25'
+                        : msg.isInternal
+                          ? 'bg-[hsl(var(--internal-note))] border border-warning/30'
+                          : msg.role === 'employee'
+                            ? 'bg-secondary text-secondary-foreground'
+                            : 'bg-surface border border-border text-foreground'
                     )}
                   >
-                    <p className={cn('text-xs font-semibold mb-1', msg.isInternal ? 'text-foreground' : msg.role === 'employee' ? 'text-secondary-foreground/80' : 'text-muted-foreground')}>
+                    <p className={cn('text-xs font-semibold mb-1', isForwardMsg ? 'text-info' : msg.isInternal ? 'text-foreground' : msg.role === 'employee' ? 'text-secondary-foreground/80' : 'text-muted-foreground')}>
                       {msg.author}
                     </p>
-                    <p className="leading-relaxed">{msg.content}</p>
+                    {isForwardMsg ? (
+                      <div>
+                        <p className="font-semibold text-foreground">{forwardLines[0]}</p>
+                        {forwardLines.length > 1 && (
+                          <p className="mt-1 text-muted-foreground leading-relaxed">{forwardLines.slice(1).join('\n')}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="leading-relaxed">{msg.content}</p>
+                    )}
+                    {msg.attachments?.length ? (
+                      <div className="mt-2 space-y-1">
+                        {msg.attachments.map((att) => (
+                          <div key={att.name} className="space-y-1">
+                            <div className="flex items-center gap-2 rounded-md bg-black/10 px-2 py-1.5">
+                              <Paperclip className="h-3 w-3 shrink-0 opacity-70" />
+                              <span className="text-xs truncate flex-1">{att.name}</span>
+                              {att.url && (
+                                <a href={att.url} target="_blank" rel="noreferrer" className="text-xs underline shrink-0 opacity-80 hover:opacity-100">View</a>
+                              )}
+                            </div>
+                            {att.url && att.type.startsWith('image/') && (
+                              <img src={att.url} alt={att.name} className="max-h-48 w-full object-contain rounded-md border border-black/10" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <p className={cn('text-[10px] text-muted-foreground mt-1', msg.role === 'employee' ? 'text-right' : '')}>
                     {msg.timestamp}
                   </p>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -503,6 +653,34 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
             {sendError ? (
               <p className="text-xs text-destructive mb-2">{sendError}</p>
             ) : null}
+            {chatFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {chatFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 bg-muted/60 rounded px-2 py-1 text-xs">
+                    <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="truncate max-w-[160px] text-foreground">{file.name}</span>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      onClick={() => setChatFiles((prev) => prev.filter((_, i) => i !== idx))}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              ref={chatFileInputRef}
+              type="file"
+              multiple
+              accept=".png,.jpg,.jpeg,.pdf,.csv,.xls,.xlsx,.txt,.log"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) {
+                  setChatFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                  e.target.value = '';
+                }
+              }}
+            />
             <div className="flex gap-2">
               <Textarea
                 placeholder={isInternal ? 'Write an internal note…' : 'Type your reply to the client…'}
@@ -514,19 +692,79 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend();
                 }}
               />
-              <Button
-                size="icon"
-                className="self-end shrink-0 h-10 w-10"
-                onClick={handleSend}
-                disabled={isSending || !replyText.trim()}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-col gap-1.5 self-end">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="shrink-0 h-10 w-10"
+                  onClick={() => chatFileInputRef.current?.click()}
+                  title="Attach file"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  className="shrink-0 h-10 w-10"
+                  onClick={handleSend}
+                  disabled={isSending || !replyText.trim()}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <p className="text-[10px] text-muted-foreground mt-1.5">Press Ctrl+Enter to send</p>
           </div>
         </div>
       </div>
+
+      {/* Forward to Team Member Dialog */}
+      <Dialog open={forwardOpen} onOpenChange={(open) => { if (!isForwarding) { setForwardOpen(open); if (!open) { setForwardTo(''); setForwardNote(''); } } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CornerUpRight className="h-4 w-4 text-muted-foreground" />
+              Forward to Team Member
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1.5">Forward to <span className="text-primary">*</span></label>
+              <Select value={forwardTo} onValueChange={setForwardTo}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Select team member…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TEAM_MEMBERS.filter((m) => m !== 'Unassigned' && m !== user?.name).map((m) => (
+                    <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1.5">
+                Context / Note <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Textarea
+                placeholder="What do you need from them? Any permission, question, or context…"
+                rows={3}
+                className="text-sm resize-none"
+                value={forwardNote}
+                onChange={(e) => setForwardNote(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setForwardOpen(false)} disabled={isForwarding}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleForwardSend} disabled={!forwardTo || isForwarding}>
+              <CornerUpRight className="h-3.5 w-3.5 mr-1.5" />
+              {isForwarding ? 'Sending…' : 'Forward'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!pendingStatus} onOpenChange={(open) => {
         if (!open && !isResolving) {

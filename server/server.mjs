@@ -12,6 +12,7 @@ const DATA_DIR = path.join(__dirname, "data");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const TICKETS_FILE = path.join(DATA_DIR, "tickets.json");
 const MESSAGES_FILE = path.join(DATA_DIR, "messages.json");
+const NOTIFICATIONS_FILE = path.join(DATA_DIR, "notifications.json");
 
 const PRIORITIES = new Set(["Critical", "High", "Medium", "Low"]);
 const STATUSES = new Set(["Open", "In Progress", "Pending Client", "Resolved", "Closed"]);
@@ -75,11 +76,21 @@ async function migratePasswordsIfNeeded() {
 }
 
 // ─── Session tokens (M5) ────────────────────────────────────────────────────
-const SESSION_SECRET = process.env.SESSION_SECRET || (() => {
+const SESSION_SECRET_FILE = path.join(DATA_DIR, '.session-secret');
+
+async function loadOrCreateSessionSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  try {
+    const stored = (await fs.readFile(SESSION_SECRET_FILE, 'utf-8')).trim();
+    if (stored.length >= 32) return stored;
+  } catch { /* file doesn't exist yet */ }
   const s = crypto.randomBytes(32).toString('hex');
-  console.warn('[security] SESSION_SECRET env var not set — using ephemeral secret. Sessions will not survive restarts.');
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(SESSION_SECRET_FILE, s, 'utf-8');
   return s;
-})();
+}
+
+const SESSION_SECRET = await loadOrCreateSessionSecret();
 
 function createSessionToken(user) {
   const payload = Buffer.from(JSON.stringify({
@@ -125,7 +136,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -289,6 +300,74 @@ async function updateTicketById(ticketId, updater) {
   });
 }
 
+// ─── Notifications helpers ───────────────────────────────────────────────────
+async function loadNotifications() {
+  return readJson(NOTIFICATIONS_FILE, {});
+}
+
+async function createNotification(userId, type, ticketId, ticketTitle, message) {
+  const notifs = await loadNotifications();
+  if (!notifs[userId]) notifs[userId] = [];
+  notifs[userId].unshift({
+    id: `notif-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+    type,
+    ticketId,
+    ticketTitle,
+    message,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  });
+  // Keep at most 100 notifications per user
+  if (notifs[userId].length > 100) notifs[userId] = notifs[userId].slice(0, 100);
+  await writeJson(NOTIFICATIONS_FILE, notifs);
+}
+
+async function notifyAllInorinsStaff(type, ticketId, ticketTitle, message) {
+  const users = await loadUsers();
+  const staff = users.filter((u) => u.role === 'inorins');
+  await Promise.all(staff.map((u) => createNotification(u.id, type, ticketId, ticketTitle, message)));
+}
+
+async function notifyAdminOnly(type, ticketId, ticketTitle, message) {
+  const users = await loadUsers();
+  const admin = users.find((u) => u.email?.toLowerCase() === 'inorins@inorins.com');
+  if (admin) await createNotification(admin.id, type, ticketId, ticketTitle, message);
+}
+
+// ─── SLA helpers ─────────────────────────────────────────────────────────────
+const SLA_HOURS = { Critical: 4, High: 8, Medium: 24, Low: 72 };
+
+async function runSlaCheck() {
+  const tickets = await loadTickets();
+  const now = Date.now();
+  let updated = false;
+  for (const ticket of tickets) {
+    if (ticket.status !== 'Open' && ticket.status !== 'In Progress') continue;
+    if (ticket.slaBreachNotifiedAt) continue;
+    const slaHours = SLA_HOURS[ticket.priority];
+    if (!slaHours) continue;
+    const ageHours = (now - new Date(ticket.createdAt).getTime()) / 3600000;
+    if (ageHours >= slaHours) {
+      ticket.slaBreach = true;
+      ticket.slaBreachNotifiedAt = new Date().toISOString();
+      updated = true;
+      const msg = `: ${ticket.title} (${ticket.priority}, ${Math.floor(ageHours)}h old)`;
+      if (ticket.assignee) {
+        const users = await loadUsers();
+        const assigneeUser = users.find((u) => u.name === ticket.assignee || u.email === ticket.assignee);
+        if (assigneeUser) {
+          await createNotification(assigneeUser.id, 'sla_breach', ticket.id, ticket.title, msg);
+        } else {
+          await notifyAdminOnly('sla_breach', ticket.id, ticket.title, msg);
+        }
+      } else {
+        await notifyAdminOnly('sla_breach', ticket.id, ticket.title, msg);
+      }
+    }
+  }
+  if (updated) await writeJson(TICKETS_FILE, tickets);
+}
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
@@ -342,6 +421,73 @@ app.post("/api/auth/login", async (req, res, next) => {
     }
 
     res.json({ user: sanitizeUser(found), token: createSessionToken(found) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/auth/change-password", async (req, res, next) => {
+  try {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) {
+      res.status(401).json({ message: "Authentication required." });
+      return;
+    }
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+      res.status(400).json({ message: "Current and new password are required." });
+      return;
+    }
+    if (newPassword.length < 8) {
+      res.status(400).json({ message: "New password must be at least 8 characters." });
+      return;
+    }
+    if (newPassword.length > 128) {
+      res.status(400).json({ message: "New password must be at most 128 characters." });
+      return;
+    }
+    const users = await loadUsers();
+    const userIndex = users.findIndex((u) => u.id === sessionUser.id);
+    if (userIndex < 0) {
+      res.status(404).json({ message: "User not found." });
+      return;
+    }
+    const isValid = await verifyPassword(currentPassword, users[userIndex].password);
+    if (!isValid) {
+      res.status(401).json({ message: "Current password is incorrect." });
+      return;
+    }
+    users[userIndex] = { ...users[userIndex], password: await hashPassword(newPassword) };
+    await writeJson(USERS_FILE, users);
+    res.json({ message: "Password changed successfully." });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/archive", async (req, res, next) => {
+  try {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser || sessionUser.role !== 'inorins') {
+      res.status(403).json({ message: "Access denied." });
+      return;
+    }
+    const users = await loadUsers();
+    const user = users.find((u) => u.id === sessionUser.id);
+    if (!user || user.email.toLowerCase() !== 'inorins@inorins.com') {
+      res.status(403).json({ message: "Access denied. Archive is only available to the admin account." });
+      return;
+    }
+    const tickets = await loadTickets();
+    const archived = tickets
+      .filter((t) => t.status === 'Resolved' || t.status === 'Closed')
+      .map(withLastUpdated)
+      .sort((a, b) => {
+        const aDate = new Date(a.resolvedAt ?? a.updatedAt ?? 0).getTime();
+        const bDate = new Date(b.resolvedAt ?? b.updatedAt ?? 0).getTime();
+        return bDate - aDate;
+      });
+    res.json(archived);
   } catch (error) {
     next(error);
   }
@@ -522,6 +668,11 @@ app.post("/api/tickets", async (req, res, next) => {
       await writeJson(MESSAGES_FILE, messages);
     }
 
+    // Notify all inorins staff about new ticket
+    notifyAllInorinsStaff('new_ticket', ticket.id, ticket.title,
+      `New ticket from ${ticket.bankName || ticket.reporter}: ${ticket.title}`
+    ).catch(() => {});
+
     res.status(201).json(withLastUpdated(ticket));
   } catch (error) {
     next(error);
@@ -546,6 +697,17 @@ app.patch("/api/tickets/:id/status", async (req, res, next) => {
     if (!updated) {
       res.status(404).json({ message: "Ticket not found." });
       return;
+    }
+
+    // Notify reporter (client) about status change
+    if (updated.reporterEmail) {
+      const users = await loadUsers();
+      const reporter = users.find((u) => u.email?.toLowerCase() === updated.reporterEmail.toLowerCase());
+      if (reporter) {
+        createNotification(reporter.id, 'status_changed', updated.id, updated.title,
+          `Your ticket "${updated.title}" status changed to: ${status}`
+        ).catch(() => {});
+      }
     }
 
     res.json(withLastUpdated(updated));
@@ -635,6 +797,78 @@ app.patch("/api/tickets/:id/assign", async (req, res, next) => {
       return;
     }
 
+    // Notify the newly assigned staff member
+    if (assignee) {
+      const users = await loadUsers();
+      const assigneeUser = users.find((u) => u.name === assignee || u.email === assignee);
+      if (assigneeUser) {
+        createNotification(assigneeUser.id, 'ticket_assigned', updated.id, updated.title,
+          `You have been assigned ticket: ${updated.title}`
+        ).catch(() => {});
+      }
+    }
+
+    res.json(withLastUpdated(updated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch("/api/tickets/:id/forward", async (req, res, next) => {
+  try {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser || sessionUser.role !== 'inorins') {
+      res.status(403).json({ message: "Only Inorins staff can forward tickets." });
+      return;
+    }
+
+    const forwardedTo = String(req.body?.forwardedTo ?? '').trim();
+    const forwardNote = String(req.body?.forwardNote ?? '').trim().slice(0, 1000);
+    const forwardedBy = String(req.body?.forwardedBy ?? '').trim();
+
+    if (!forwardedTo) {
+      res.status(400).json({ message: "forwardedTo is required." });
+      return;
+    }
+
+    const updated = await updateTicketById(req.params.id, (ticket) => ({
+      ...ticket,
+      assignee: forwardedTo,
+      forwardedTo,
+      forwardedBy: forwardedBy || 'Team',
+      forwardNote: forwardNote || undefined,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    if (!updated) {
+      res.status(404).json({ message: "Ticket not found." });
+      return;
+    }
+
+    res.json(withLastUpdated(updated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/tickets/:id/forward", async (req, res, next) => {
+  try {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser || sessionUser.role !== 'inorins') {
+      res.status(403).json({ message: "Access denied." });
+      return;
+    }
+
+    const updated = await updateTicketById(req.params.id, (ticket) => {
+      const { forwardedTo, forwardedBy, forwardNote, ...rest } = ticket;
+      return { ...rest, updatedAt: new Date().toISOString() };
+    });
+
+    if (!updated) {
+      res.status(404).json({ message: "Ticket not found." });
+      return;
+    }
+
     res.json(withLastUpdated(updated));
   } catch (error) {
     next(error);
@@ -686,6 +920,29 @@ app.post("/api/tickets/:id/messages", async (req, res, next) => {
       req.body?.author ?? (role === "client" ? "Client" : "Inorins Support"),
     ).trim();
 
+    const attachments = [];
+    if (Array.isArray(req.body?.attachments)) {
+      const uploadDir = path.join(__dirname, 'uploads', req.params.id);
+      await fs.mkdir(uploadDir, { recursive: true });
+      for (const item of req.body.attachments) {
+        if (item && typeof item.name === 'string' && typeof item.size === 'number' && typeof item.type === 'string') {
+          const attachment = { name: item.name, size: item.size, type: item.type };
+          if (typeof item.content === 'string') {
+            const safeName = path.basename(item.name).replace(/[^a-zA-Z0-9._-]/g, '_');
+            const ext = path.extname(safeName).toLowerCase();
+            if (!ALLOWED_UPLOAD_EXTENSIONS.has(ext)) continue;
+            const savedName = `msg-${Date.now()}-${safeName}`;
+            const filePath = path.join(uploadDir, savedName);
+            if (!path.resolve(filePath).startsWith(path.resolve(uploadDir))) continue;
+            const base64 = item.content.split(',').pop() ?? '';
+            await fs.writeFile(filePath, Buffer.from(base64, 'base64'));
+            attachment.url = `/api/download/${req.params.id}/${encodeURIComponent(savedName)}`;
+          }
+          attachments.push(attachment);
+        }
+      }
+    }
+
     const message = {
       id: `${req.params.id}-${Date.now()}-${Math.floor(Math.random() * 10_000)}`,
       author: author || (role === "client" ? "Client" : "Inorins Support"),
@@ -693,6 +950,7 @@ app.post("/api/tickets/:id/messages", async (req, res, next) => {
       content,
       timestamp: toMessageTimestamp(new Date()),
       isInternal: Boolean(req.body?.isInternal),
+      ...(attachments.length > 0 ? { attachments } : {}),
     };
 
     const messages = await loadMessages();
@@ -700,10 +958,43 @@ app.post("/api/tickets/:id/messages", async (req, res, next) => {
     messages[req.params.id] = [...existing, message];
     await writeJson(MESSAGES_FILE, messages);
 
-    await updateTicketById(req.params.id, (ticket) => ({
+    const updatedTicket = await updateTicketById(req.params.id, (ticket) => ({
       ...ticket,
       updatedAt: new Date().toISOString(),
     }));
+
+    // Cross-notify: client reply → notify assignee (or all staff); staff reply → notify reporter
+    if (updatedTicket && !message.isInternal) {
+      const users = await loadUsers();
+      if (role === 'client') {
+        if (updatedTicket.assignee) {
+          const assigneeUser = users.find((u) => u.name === updatedTicket.assignee || u.email === updatedTicket.assignee);
+          if (assigneeUser) {
+            createNotification(assigneeUser.id, 'new_client_reply', updatedTicket.id, updatedTicket.title,
+              `Client replied on ticket: ${updatedTicket.title}`
+            ).catch(() => {});
+          } else {
+            notifyAdminOnly('new_client_reply', updatedTicket.id, updatedTicket.title,
+              `Client replied on ticket: ${updatedTicket.title}`
+            ).catch(() => {});
+          }
+        } else {
+          notifyAllInorinsStaff('new_client_reply', updatedTicket.id, updatedTicket.title,
+            `Client replied on ticket: ${updatedTicket.title}`
+          ).catch(() => {});
+        }
+      } else {
+        // Staff replied — notify the reporter (client)
+        if (updatedTicket.reporterEmail) {
+          const reporter = users.find((u) => u.email?.toLowerCase() === updatedTicket.reporterEmail.toLowerCase());
+          if (reporter) {
+            createNotification(reporter.id, 'new_staff_reply', updatedTicket.id, updatedTicket.title,
+              `Support team replied on your ticket: ${updatedTicket.title}`
+            ).catch(() => {});
+          }
+        }
+      }
+    }
 
     res.status(201).json(message);
   } catch (error) {
@@ -804,6 +1095,259 @@ app.post("/api/subscribe", async (req, res, next) => {
   }
 });
 
+// ─── Notification routes ─────────────────────────────────────────────────────
+app.get("/api/notifications", async (req, res, next) => {
+  try {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) { res.status(401).json({ message: "Authentication required." }); return; }
+    const all = await loadNotifications();
+    res.json(all[sessionUser.id] ?? []);
+  } catch (error) { next(error); }
+});
+
+app.patch("/api/notifications/read-all", async (req, res, next) => {
+  try {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) { res.status(401).json({ message: "Authentication required." }); return; }
+    const all = await loadNotifications();
+    if (all[sessionUser.id]) {
+      all[sessionUser.id] = all[sessionUser.id].map((n) => ({ ...n, isRead: true }));
+      await writeJson(NOTIFICATIONS_FILE, all);
+    }
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+app.patch("/api/notifications/:id/read", async (req, res, next) => {
+  try {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) { res.status(401).json({ message: "Authentication required." }); return; }
+    const all = await loadNotifications();
+    if (all[sessionUser.id]) {
+      all[sessionUser.id] = all[sessionUser.id].map((n) =>
+        n.id === req.params.id ? { ...n, isRead: true } : n
+      );
+      await writeJson(NOTIFICATIONS_FILE, all);
+    }
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+// ─── Ticket edit by client ───────────────────────────────────────────────────
+app.patch("/api/tickets/:id/edit", async (req, res, next) => {
+  try {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser || sessionUser.role !== 'client') {
+      res.status(403).json({ message: "Only clients can edit tickets." }); return;
+    }
+
+    const tickets = await loadTickets();
+    const ticket = tickets.find((t) => t.id === req.params.id);
+    if (!ticket) { res.status(404).json({ message: "Ticket not found." }); return; }
+
+    if (ticket.status !== 'Open' && ticket.status !== 'Pending Client') {
+      res.status(400).json({ message: "Ticket can only be edited when Open or Pending Client." }); return;
+    }
+
+    const email = (sessionUser.bankDomain ?? '');
+    const reporterEmailLower = ticket.reporterEmail?.toLowerCase() ?? '';
+    const bankNameLower = (sessionUser.bankName ?? '').toLowerCase();
+    const emailMatch = email ? reporterEmailLower.endsWith(`@${email}`) : false;
+    const bankMatch = bankNameLower ? String(ticket.bankName ?? '').toLowerCase() === bankNameLower : false;
+    if (!emailMatch && !bankMatch) {
+      res.status(403).json({ message: "Access denied." }); return;
+    }
+
+    const payload = req.body ?? {};
+    const allowedFields = ['title', 'description', 'priority', 'requestType', 'requestedDelivery',
+      'system', 'module', 'form', 'moduleDetails', 'contactName', 'contactDesignation', 'contactPhone'];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (field in payload && typeof payload[field] === 'string') {
+        updates[field] = payload[field].trim().slice(0, FIELD_MAX_LENGTHS[field] ?? 500);
+      }
+    }
+    if (payload.priority && PRIORITIES.has(payload.priority)) updates.priority = payload.priority;
+
+    const now = new Date().toISOString();
+    const updated = await updateTicketById(req.params.id, (t) => ({
+      ...t, ...updates, isEdited: true, editedAt: now, updatedAt: now,
+    }));
+
+    // Post a system message about the edit
+    const messages = await loadMessages();
+    const existing = messages[req.params.id] ?? [];
+    const sysMsg = {
+      id: `${req.params.id}-edit-${Date.now()}`,
+      author: 'System',
+      role: 'employee',
+      content: 'Ticket details were edited by the client.',
+      timestamp: toMessageTimestamp(new Date()),
+      isInternal: false,
+    };
+    messages[req.params.id] = [...existing, sysMsg];
+    await writeJson(MESSAGES_FILE, messages);
+
+    // Notify assignee or all staff about the edit
+    if (updated.assignee) {
+      const users = await loadUsers();
+      const assigneeUser = users.find((u) => u.name === updated.assignee || u.email === updated.assignee);
+      if (assigneeUser) {
+        createNotification(assigneeUser.id, 'ticket_edited', updated.id, updated.title,
+          `Client edited ticket details: ${updated.title}`
+        ).catch(() => {});
+      } else {
+        notifyAdminOnly('ticket_edited', updated.id, updated.title, `Client edited ticket: ${updated.title}`).catch(() => {});
+      }
+    } else {
+      notifyAllInorinsStaff('ticket_edited', updated.id, updated.title, `Client edited ticket: ${updated.title}`).catch(() => {});
+    }
+
+    res.json(withLastUpdated(updated));
+  } catch (error) { next(error); }
+});
+
+// ─── Admin user management ───────────────────────────────────────────────────
+function requireAdmin(req, res) {
+  const sessionUser = getSessionUser(req);
+  if (!sessionUser || sessionUser.role !== 'inorins') {
+    res.status(403).json({ message: "Access denied." }); return null;
+  }
+  return sessionUser;
+}
+
+app.get("/api/admin/users", async (req, res, next) => {
+  try {
+    const sessionUser = requireAdmin(req, res);
+    if (!sessionUser) return;
+    const users = await loadUsers();
+    const adminUser = users.find((u) => u.id === sessionUser.id);
+    if (!adminUser || adminUser.email?.toLowerCase() !== 'inorins@inorins.com') {
+      res.status(403).json({ message: "Access denied." }); return;
+    }
+    res.json(users.map(sanitizeUser));
+  } catch (error) { next(error); }
+});
+
+app.post("/api/admin/users", async (req, res, next) => {
+  try {
+    const sessionUser = requireAdmin(req, res);
+    if (!sessionUser) return;
+    const users = await loadUsers();
+    const adminUser = users.find((u) => u.id === sessionUser.id);
+    if (!adminUser || adminUser.email?.toLowerCase() !== 'inorins@inorins.com') {
+      res.status(403).json({ message: "Access denied." }); return;
+    }
+
+    const { name, email, password, role, title, bankName, bankDomain, bankShortCode } = req.body ?? {};
+    if (!name || !email || !password || !role) {
+      res.status(400).json({ message: "Name, email, password, and role are required." }); return;
+    }
+    if (!ROLES.has(role)) { res.status(400).json({ message: "Invalid role." }); return; }
+    if (String(password).length < 8) { res.status(400).json({ message: "Password must be at least 8 characters." }); return; }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (users.find((u) => u.email?.toLowerCase() === normalizedEmail)) {
+      res.status(409).json({ message: "A user with this email already exists." }); return;
+    }
+
+    const newUser = {
+      id: `user-${Date.now()}`,
+      name: String(name).trim().slice(0, 100),
+      email: normalizedEmail,
+      password: await hashPassword(password),
+      role,
+      title: String(title ?? '').trim().slice(0, 100),
+      isActive: true,
+      ...(role === 'client' ? {
+        bankName: String(bankName ?? '').trim(),
+        bankDomain: String(bankDomain ?? '').trim().toLowerCase(),
+        bankShortCode: String(bankShortCode ?? '').trim(),
+      } : {}),
+    };
+
+    users.push(newUser);
+    await writeJson(USERS_FILE, users);
+    res.status(201).json(sanitizeUser(newUser));
+  } catch (error) { next(error); }
+});
+
+app.patch("/api/admin/users/:id", async (req, res, next) => {
+  try {
+    const sessionUser = requireAdmin(req, res);
+    if (!sessionUser) return;
+    const users = await loadUsers();
+    const adminUser = users.find((u) => u.id === sessionUser.id);
+    if (!adminUser || adminUser.email?.toLowerCase() !== 'inorins@inorins.com') {
+      res.status(403).json({ message: "Access denied." }); return;
+    }
+
+    const idx = users.findIndex((u) => u.id === req.params.id);
+    if (idx < 0) { res.status(404).json({ message: "User not found." }); return; }
+
+    const { name, email, role, title, bankName, bankDomain, bankShortCode, isActive } = req.body ?? {};
+    const updates = {};
+    if (name) updates.name = String(name).trim().slice(0, 100);
+    if (email) updates.email = String(email).trim().toLowerCase();
+    if (role && ROLES.has(role)) updates.role = role;
+    if (title !== undefined) updates.title = String(title).trim().slice(0, 100);
+    if (bankName !== undefined) updates.bankName = String(bankName).trim();
+    if (bankDomain !== undefined) updates.bankDomain = String(bankDomain).trim().toLowerCase();
+    if (bankShortCode !== undefined) updates.bankShortCode = String(bankShortCode).trim();
+    if (isActive !== undefined) updates.isActive = Boolean(isActive);
+
+    users[idx] = { ...users[idx], ...updates };
+    await writeJson(USERS_FILE, users);
+    res.json(sanitizeUser(users[idx]));
+  } catch (error) { next(error); }
+});
+
+app.patch("/api/admin/users/:id/reset-password", async (req, res, next) => {
+  try {
+    const sessionUser = requireAdmin(req, res);
+    if (!sessionUser) return;
+    const users = await loadUsers();
+    const adminUser = users.find((u) => u.id === sessionUser.id);
+    if (!adminUser || adminUser.email?.toLowerCase() !== 'inorins@inorins.com') {
+      res.status(403).json({ message: "Access denied." }); return;
+    }
+
+    const { newPassword } = req.body ?? {};
+    if (!newPassword || String(newPassword).length < 8) {
+      res.status(400).json({ message: "New password must be at least 8 characters." }); return;
+    }
+
+    const idx = users.findIndex((u) => u.id === req.params.id);
+    if (idx < 0) { res.status(404).json({ message: "User not found." }); return; }
+
+    users[idx] = { ...users[idx], password: await hashPassword(String(newPassword)) };
+    await writeJson(USERS_FILE, users);
+    res.json({ message: "Password reset successfully." });
+  } catch (error) { next(error); }
+});
+
+app.delete("/api/admin/users/:id", async (req, res, next) => {
+  try {
+    const sessionUser = requireAdmin(req, res);
+    if (!sessionUser) return;
+    const users = await loadUsers();
+    const adminUser = users.find((u) => u.id === sessionUser.id);
+    if (!adminUser || adminUser.email?.toLowerCase() !== 'inorins@inorins.com') {
+      res.status(403).json({ message: "Access denied." }); return;
+    }
+    if (req.params.id === sessionUser.id) {
+      res.status(400).json({ message: "Cannot deactivate your own account." }); return;
+    }
+
+    const idx = users.findIndex((u) => u.id === req.params.id);
+    if (idx < 0) { res.status(404).json({ message: "User not found." }); return; }
+
+    users[idx] = { ...users[idx], isActive: false };
+    await writeJson(USERS_FILE, users);
+    res.json({ message: "User deactivated." });
+  } catch (error) { next(error); }
+});
+
 app.use((req, res) => {
   res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` });
 });
@@ -812,6 +1356,14 @@ app.use((error, _req, res, _next) => {
   console.error(error);
   res.status(500).json({ message: "Internal server error." });
 });
+
+// ─── SLA check every 15 minutes ─────────────────────────────────────────────
+setInterval(() => {
+  runSlaCheck().catch((err) => console.error('[sla] Check failed:', err));
+}, 15 * 60 * 1000);
+setTimeout(() => {
+  runSlaCheck().catch((err) => console.error('[sla] Initial check failed:', err));
+}, 60 * 1000);
 
 // ─── Daily backup at 7 PM ───────────────────────────────────────────────────
 const BACKUP_DIR = path.join(__dirname, 'backups');

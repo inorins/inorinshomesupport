@@ -42,6 +42,25 @@ export interface Ticket {
   startedAt?: string;
   resolvedAt?: string;
   resolutionNote?: ResolutionNote;
+  forwardedTo?: string;
+  forwardedBy?: string;
+  forwardNote?: string;
+  slaBreach?: boolean;
+  slaBreachNotifiedAt?: string;
+  isEdited?: boolean;
+  editedAt?: string;
+}
+
+export type NotificationType = 'ticket_assigned' | 'status_changed' | 'new_client_reply' | 'new_staff_reply' | 'sla_breach' | 'ticket_edited' | 'new_ticket';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  ticketId: string;
+  ticketTitle: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
 }
 
 export interface ChatMessage {
@@ -51,6 +70,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   isInternal: boolean;
+  attachments?: AttachmentMetadata[];
 }
 
 export const systemModules: Record<string, Record<string, string[]>> = {

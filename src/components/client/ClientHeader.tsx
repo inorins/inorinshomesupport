@@ -38,10 +38,10 @@ export function ClientHeader({ onNewTicket }: ClientHeaderProps) {
           New Ticket
         </Button>
 
-        <button className="relative p-2 rounded-md hover:bg-accent transition-colors">
+        {/* <button className="relative p-2 rounded-md hover:bg-accent transition-colors">
           <Bell className="h-5 w-5 text-muted-foreground" />
           <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-primary rounded-full" />
-        </button>
+        </button> */}
 
         <button
           onClick={logout}

@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { ArrowLeft, Paperclip, Send, Clock, User, Monitor, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState, useRef, type ChangeEvent } from 'react';
+import { ArrowLeft, Paperclip, Send, Clock, User, Monitor, Tag, CheckCircle2, AlertCircle, Pencil } from 'lucide-react';
+import { EditTicketDialog } from '@/components/client/EditTicketDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,9 +39,44 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const [editOpen, setEditOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [chatFiles, setChatFiles] = useState<File[]>([]);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+  const ACCEPTED_ATTACHMENT_TYPES = [
+    'image/png',
+    'image/jpeg',
+    'application/pdf',
+    'text/csv',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain',
+  ];
+
+  const addChatFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+
+    const newFiles = Array.from(files);
+    const invalid = newFiles.some((file) => {
+      const name = file.name.toLowerCase();
+      const ext = name.slice(name.lastIndexOf('.'));
+      const isAllowedByExtension = ['.png', '.jpg', '.jpeg', '.pdf', '.csv', '.xls', '.xlsx', '.txt', '.log'].includes(ext);
+      return file.size > MAX_ATTACHMENT_SIZE || (!ACCEPTED_ATTACHMENT_TYPES.includes(file.type) && !isAllowedByExtension);
+    });
+
+    if (invalid) {
+      setUploadError('Only PNG, JPG, PDF, CSV, XLS, XLSX, TXT and LOG files under 10MB are allowed.');
+      return;
+    }
+
+    setUploadError('');
+    setChatFiles((prev) => [...prev, ...newFiles]);
+  };
 
   // Clients never see internal notes
   const visibleMessages = messages.filter((m) => !m.isInternal);
@@ -51,13 +87,23 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
     setIsSending(true);
     setSendError('');
     try {
+      const attachmentsPayload = await Promise.all(
+        chatFiles.map((file) => new Promise<{ name: string; size: number; type: string; content: string }>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve({ name: file.name, size: file.size, type: file.type, content: e.target?.result as string });
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        }))
+      );
       await api.sendMessage(ticket.id, {
         content: replyText,
         isInternal: false,
         role: 'client',
         author: user?.name,
+        attachments: attachmentsPayload.length > 0 ? attachmentsPayload : undefined,
       });
       setReplyText('');
+      setChatFiles([]);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['messages', ticket.id] }),
         queryClient.invalidateQueries({ queryKey: ['tickets'] }),
@@ -99,9 +145,23 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
             <Badge className={priorityStyles[ticket.priority]}>{ticket.priority}</Badge>
             <Badge className={statusStyles[ticket.status]}>{ticket.status}</Badge>
           </div>
-          <h1 className="text-lg font-bold text-foreground mt-1 truncate">{ticket.title}</h1>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <h1 className="text-lg font-bold text-foreground truncate">{ticket.title}</h1>
+            {ticket.isEdited && (
+              <span className="inline-flex shrink-0 items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/25">
+                Edited
+              </span>
+            )}
+          </div>
         </div>
+        {(ticket.status === 'Open' || ticket.status === 'Pending Client') && (
+          <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setEditOpen(true)}>
+            <Pencil className="h-3.5 w-3.5" />
+            Edit Ticket
+          </Button>
+        )}
       </div>
+      <EditTicketDialog ticket={ticket} open={editOpen} onClose={() => setEditOpen(false)} />
 
       {/* Body */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -265,6 +325,24 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
                             {isMe ? (user?.name ?? msg.author) : `Inorins Support · ${msg.author}`}
                           </p>
                           <p className="leading-relaxed">{msg.content}</p>
+                          {msg.attachments?.length ? (
+                            <div className="mt-2 space-y-1">
+                              {msg.attachments.map((att) => (
+                                <div key={att.name} className="space-y-1">
+                                  <div className="flex items-center gap-2 rounded-md bg-black/10 px-2 py-1.5">
+                                    <Paperclip className="h-3 w-3 shrink-0 opacity-70" />
+                                    <span className="text-xs truncate flex-1">{att.name}</span>
+                                    {att.url && (
+                                      <a href={att.url} target="_blank" rel="noreferrer" className="text-xs underline shrink-0 opacity-80 hover:opacity-100">View</a>
+                                    )}
+                                  </div>
+                                  {att.url && att.type.startsWith('image/') && (
+                                    <img src={att.url} alt={att.name} className="max-h-48 w-full object-contain rounded-md border border-black/10" />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                         <p className={cn('text-[10px] text-muted-foreground mt-1', isMe ? 'text-right' : '')}>
                           {msg.timestamp}
@@ -278,6 +356,35 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
               {ticket.status !== 'Closed' && (
                 <div className="border-t border-border p-4 shrink-0 bg-card">
                   {sendError ? <p className="text-xs text-destructive mb-2">{sendError}</p> : null}
+                  {uploadError ? <p className="text-xs text-destructive mb-2">{uploadError}</p> : null}
+                  {chatFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {chatFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 bg-muted/60 rounded px-2 py-1 text-xs">
+                          <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="truncate max-w-[160px] text-foreground">{file.name}</span>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-destructive transition-colors"
+                            onClick={() => setChatFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    ref={chatFileInputRef}
+                    type="file"
+                    multiple
+                    accept=".png,.jpg,.jpeg,.pdf,.csv,.xls,.xlsx,.txt,.log"
+                    className="hidden"
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      addChatFiles(e.target.files);
+                      if (e.target) {
+                        e.target.value = '';
+                      }
+                    }}
+                  />
                   <div className="flex gap-2">
                     <Textarea
                       placeholder="Type your message to the support team…"
@@ -289,14 +396,26 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
                         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend();
                       }}
                     />
-                    <Button
-                      size="icon"
-                      className="self-end shrink-0 h-10 w-10"
-                      onClick={handleSend}
-                      disabled={isSending || !replyText.trim()}
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
+                    <div className="flex flex-col gap-1.5 self-end">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        className="shrink-0 h-10 w-10"
+                        onClick={() => chatFileInputRef.current?.click()}
+                        title="Attach file"
+                      >
+                        <Paperclip className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        className="shrink-0 h-10 w-10"
+                        onClick={handleSend}
+                        disabled={isSending || !replyText.trim()}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1.5">Press Ctrl+Enter to send</p>
                 </div>

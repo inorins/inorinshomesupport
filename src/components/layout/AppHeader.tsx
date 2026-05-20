@@ -32,10 +32,10 @@ export function AppHeader({ onNewTicket, searchQuery = '', onSearchChange }: App
           New Ticket
         </Button>
 
-        <button className="relative p-2 rounded-md hover:bg-accent transition-colors">
+        {/* <button className="relative p-2 rounded-md hover:bg-accent transition-colors">
           <Bell className="h-5 w-5 text-muted-foreground" />
           <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-primary rounded-full" />
-        </button>
+        </button> */}
 
         <div className="flex items-center gap-2 pl-3 border-l border-border">
           <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">

@@ -5,6 +5,7 @@ import { ClientSidebar } from '@/components/client/ClientSidebar';
 import { ClientTicketListView } from '@/components/views/ClientTicketListView';
 import { ClientTicketDetailView } from '@/components/views/ClientTicketDetailView';
 import { ClientNewTicketView } from '@/components/views/ClientNewTicketView';
+import { SettingsView } from '@/components/views/SettingsView';
 import { useTickets } from '@/hooks/useTicketsData';
 import { useAuth } from '@/context/AuthContext';
 import { HelpCircle } from 'lucide-react';
@@ -35,6 +36,7 @@ export function ClientPortal() {
     const { pathname } = location;
     if (pathname.startsWith('/client/tickets/new')) return 'new-ticket';
     if (pathname.startsWith('/client/faq')) return 'faq';
+    if (pathname.startsWith('/client/settings')) return 'settings';
     return 'my-tickets';
   }, [location.pathname]);
 
@@ -58,6 +60,10 @@ export function ClientPortal() {
   };
 
   const handleNavigate = (view: string) => {
+    if (view.startsWith('ticket-')) {
+      navigate(`/client/tickets/${view.slice(7)}`);
+      return;
+    }
     switch (view) {
       case 'my-tickets':
         navigate('/client/tickets');
@@ -67,6 +73,9 @@ export function ClientPortal() {
         return;
       case 'faq':
         navigate('/client/faq');
+        return;
+      case 'settings':
+        navigate('/client/settings');
         return;
       default:
         navigate('/client/tickets');
@@ -88,6 +97,7 @@ export function ClientPortal() {
             <Route path="tickets/new" element={<ClientNewTicketView onSuccess={() => navigate('/client/tickets')} />} />
             <Route path="tickets/:ticketId" element={<ClientTicketDetailRoute />} />
             <Route path="faq" element={<FaqView />} />
+            <Route path="settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/client/tickets" replace />} />
           </Routes>
         </main>
@@ -105,7 +115,7 @@ function FaqView() {
     },
     {
       q: 'Can I add attachments after submitting a ticket?',
-      a: 'No — attachments must be added during the submission of the tickets.',
+      a: 'Yes — attachments can be added after submission.',
     },
     {
       q: 'Who should I contact for urgent escalation?',

@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   TicketCheck, Clock, AlertTriangle, ArrowUpRight, RefreshCw,
-  Download, Filter, X,
+  Download, Filter, X, CornerUpRight,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -112,6 +112,38 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
 
   const [nextRefreshIn, setNextRefreshIn] = useState<number>(AUTO_REFRESH_MS / 1000);
   const lastUpdatedRef = useRef<number>(dataUpdatedAt);
+  const knownTicketIdsRef = useRef<Set<string> | null>(null);
+
+  const playNewTicketBeep = useCallback(() => {
+    try {
+      const ctx = new AudioContext();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      oscillator.frequency.setValueAtTime(1100, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.4);
+    } catch { /* AudioContext not available */ }
+  }, []);
+
+  // Detect new tickets on each auto-refresh
+  useEffect(() => {
+    if (!isAdmin || isLoading || tickets.length === 0) return;
+    const currentIds = new Set(tickets.map((t) => t.id));
+    if (knownTicketIdsRef.current === null) {
+      // First load — just record existing tickets, no beep
+      knownTicketIdsRef.current = currentIds;
+      return;
+    }
+    const hasNew = tickets.some((t) => !knownTicketIdsRef.current!.has(t.id));
+    if (hasNew) playNewTicketBeep();
+    knownTicketIdsRef.current = currentIds;
+  }, [dataUpdatedAt, isAdmin, isLoading, tickets, playNewTicketBeep]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -424,7 +456,22 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
                           <span className={cn('font-mono text-xs font-semibold text-secondary', !isUnread && 'ml-4')}>{t.id}</span>
                         </div>
                       </td>
-                      <td className={cn('px-5 py-3.5 max-w-xs truncate', isUnread ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground')}>{t.title}</td>
+                      <td className="px-5 py-3.5 max-w-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={cn('truncate', isUnread ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground')}>{t.title}</span>
+                          {t.isEdited && (
+                            <span className="inline-flex shrink-0 items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/25">
+                              Edited
+                            </span>
+                          )}
+                          {t.forwardedTo && user?.name === t.forwardedTo && (
+                            <span className="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-info/10 text-info border border-info/25">
+                              <CornerUpRight className="h-2.5 w-2.5" />
+                              Forwarded
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-5 py-3.5">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-secondary/10 text-secondary border border-secondary/20">
                           {t.system}
