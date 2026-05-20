@@ -33,4 +33,4 @@ tickets.json
 server/data/messages.json
 server/data/tickets.json
 
-server/uploads/
+server/uploads/"users.json" 
