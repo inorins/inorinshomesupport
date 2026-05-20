@@ -34,3 +34,6 @@ server/data/messages.json
 server/data/tickets.json
 
 server/uploads/"users.json" 
+server/data/users.json
+server/uploads/*
+server/data/notifications.json
