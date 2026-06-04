@@ -1,4 +1,4 @@
-import { Search, Bell, Plus, ChevronDown, User, LogOut } from 'lucide-react';
+import { Search, Plus, ChevronDown, User, LogOut, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
@@ -7,15 +7,25 @@ interface AppHeaderProps {
   onNewTicket: () => void;
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
+  onMenuClick?: () => void;
 }
 
-export function AppHeader({ onNewTicket, searchQuery = '', onSearchChange }: AppHeaderProps) {
+export function AppHeader({ onNewTicket, searchQuery = '', onSearchChange, onMenuClick }: AppHeaderProps) {
   const { user, logout } = useAuth();
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 shrink-0">
+    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0 gap-3">
+      {/* Mobile menu button */}
+      <button
+        className="md:hidden p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground shrink-0"
+        onClick={onMenuClick}
+        aria-label="Open navigation"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
       {/* Search */}
-      <div className="relative w-96">
+      <div className="relative flex-1 max-w-sm md:max-w-md lg:max-w-lg">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search tickets, clients, modules..."

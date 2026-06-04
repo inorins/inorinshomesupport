@@ -1,5 +1,6 @@
 import { useState, useRef, type ChangeEvent } from 'react';
-import { ArrowLeft, Paperclip, Send, Clock, User, Monitor, Tag, CheckCircle2, AlertCircle, Pencil } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, Clock, User, Monitor, Tag, CheckCircle2, AlertCircle, Pencil, RotateCcw } from 'lucide-react';
+import { AttachmentView } from '@/components/ui/FilePreview';
 import { EditTicketDialog } from '@/components/client/EditTicketDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +42,10 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
 
   const [editOpen, setEditOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
+  const [reopenNote, setReopenNote] = useState('');
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
+  const [reopenError, setReopenError] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [uploadError, setUploadError] = useState('');
@@ -76,6 +81,25 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
 
     setUploadError('');
     setChatFiles((prev) => [...prev, ...newFiles]);
+  };
+
+  const handleReopen = async () => {
+    if (!ticket || !reopenNote.trim()) return;
+    setIsReopening(true);
+    setReopenError('');
+    try {
+      await api.reopenTicket(ticket.id, reopenNote.trim());
+      setReopenOpen(false);
+      setReopenNote('');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] }),
+        queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+      ]);
+    } catch (err) {
+      setReopenError(err instanceof Error ? err.message : 'Failed to reopen ticket.');
+    } finally {
+      setIsReopening(false);
+    }
   };
 
   // Clients never see internal notes
@@ -164,9 +188,9 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
       <EditTicketDialog ticket={ticket} open={editOpen} onClose={() => setEditOpen(false)} />
 
       {/* Body */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
         {/* Left Panel */}
-        <div className="w-72 border-r border-border bg-surface p-5 shrink-0 space-y-5 overflow-y-auto min-h-0 scrollbar-thin">
+        <div className="md:w-72 w-full border-b md:border-b-0 md:border-r border-border bg-surface p-5 shrink-0 space-y-5 overflow-y-auto md:min-h-0 scrollbar-thin">
           <Section title="Details">
             <DetailRow icon={Tag} label="System" value={ticket.system} />
             <DetailRow icon={Tag} label="Module" value={ticket.module} />
@@ -189,9 +213,7 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
                   <div key={att.name} className="flex items-center gap-2 p-2.5 bg-card rounded-md border border-border">
                     <Paperclip className="h-4 w-4 text-primary" />
                     <span className="text-sm text-foreground truncate flex-1">{att.name}</span>
-                    {att.url ? (
-                      <a href={att.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline shrink-0">View</a>
-                    ) : null}
+                    <AttachmentView att={att} className="text-xs text-primary hover:underline shrink-0" />
                   </div>
                 ))}
               </div>
@@ -271,20 +293,53 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
                         <div key={att.name} className="flex items-center gap-2.5 p-2.5 bg-surface rounded-lg border border-border">
                           <Paperclip className="h-4 w-4 text-primary shrink-0" />
                           <span className="text-sm text-foreground truncate flex-1">{att.name}</span>
-                          {att.url && (
-                            <a href={att.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline shrink-0 font-medium">View</a>
-                          )}
+                          <AttachmentView att={att} className="text-xs text-primary hover:underline shrink-0 font-medium" />
                         </div>
                       ))}
                     </div>
                   </div>
                 ) : null}
 
-                <div className="pt-2 text-center">
-                  <p className="text-xs text-muted-foreground mb-3">Need more help with this issue?</p>
-                  <Button variant="outline" size="sm" onClick={() => navigate('/client/tickets/new')}>
-                    Open a New Ticket
-                  </Button>
+                <div className="pt-2 text-center space-y-3">
+                  <p className="text-xs text-muted-foreground">Need more help with this issue?</p>
+                  <div className="flex items-center justify-center gap-3 flex-wrap">
+                    <Button variant="outline" size="sm" onClick={() => navigate('/client/tickets/new')}>
+                      Open a New Ticket
+                    </Button>
+                    {ticket.status === 'Resolved' && (
+                      <Button variant="outline" size="sm" className="gap-1.5 border-warning/40 text-warning hover:bg-warning/10" onClick={() => setReopenOpen(true)}>
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Issue Still Persists? Reopen
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Reopen dialog */}
+                  {reopenOpen && (
+                    <div className="mt-4 rounded-xl border border-warning/30 bg-warning/5 p-5 text-left max-w-lg mx-auto">
+                      <p className="text-sm font-semibold text-warning mb-1">Reopen this ticket</p>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Please describe why you are reopening this ticket. The support team will be notified.
+                      </p>
+                      <textarea
+                        className="w-full rounded-md border border-border bg-background text-sm p-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                        rows={3}
+                        placeholder="Reason for reopening…"
+                        value={reopenNote}
+                        onChange={(e) => setReopenNote(e.target.value)}
+                      />
+                      {reopenError && <p className="text-xs text-destructive mt-1">{reopenError}</p>}
+                      <div className="flex gap-2 mt-3 justify-end">
+                        <Button variant="ghost" size="sm" onClick={() => { setReopenOpen(false); setReopenNote(''); setReopenError(''); }}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" className="gap-1.5 bg-warning text-warning-foreground hover:bg-warning/90" onClick={handleReopen} disabled={isReopening || !reopenNote.trim()}>
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          {isReopening ? 'Reopening…' : 'Reopen Ticket'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -332,9 +387,7 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
                                   <div className="flex items-center gap-2 rounded-md bg-black/10 px-2 py-1.5">
                                     <Paperclip className="h-3 w-3 shrink-0 opacity-70" />
                                     <span className="text-xs truncate flex-1">{att.name}</span>
-                                    {att.url && (
-                                      <a href={att.url} target="_blank" rel="noreferrer" className="text-xs underline shrink-0 opacity-80 hover:opacity-100">View</a>
-                                    )}
+                                    <AttachmentView att={att} className="text-xs underline shrink-0 opacity-80 hover:opacity-100" />
                                   </div>
                                   {att.url && att.type.startsWith('image/') && (
                                     <img src={att.url} alt={att.name} className="max-h-48 w-full object-contain rounded-md border border-black/10" />
@@ -354,7 +407,17 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
               </div>
 
               {ticket.status !== 'Closed' && (
-                <div className="border-t border-border p-4 shrink-0 bg-card">
+                <div
+                  className="border-t border-border p-4 shrink-0 bg-card transition-colors"
+                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('ring-2', 'ring-primary/40', 'ring-inset'); }}
+                  onDragLeave={(e) => { e.currentTarget.classList.remove('ring-2', 'ring-primary/40', 'ring-inset'); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove('ring-2', 'ring-primary/40', 'ring-inset');
+                    const files = Array.from(e.dataTransfer.files).filter((f) => f.size <= 10 * 1024 * 1024);
+                    if (files.length) setChatFiles((prev) => [...prev, ...files]);
+                  }}
+                >
                   {sendError ? <p className="text-xs text-destructive mb-2">{sendError}</p> : null}
                   {uploadError ? <p className="text-xs text-destructive mb-2">{uploadError}</p> : null}
                   {chatFiles.length > 0 && (

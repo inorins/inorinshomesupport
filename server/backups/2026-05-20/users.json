@@ -1,0 +1,141 @@
+[
+  {
+    "id": "u-inorins-1",
+    "name": "Gaurav Shrestha",
+    "email": "gaurav@inorins.com",
+    "password": "scrypt$327cae6fbb1b1ea5f90b1d8bedf83286$aaa76d7c6da8f3b220ad0ce906ff2b0466317ded243dfd70edd73aeaff7670919faf5d2c1c01295e4c25d622bc143375d504d90b22bf19e8f2676df89fbaa8f7",
+    "role": "inorins",
+    "title": "Support Lead"
+  },
+  {
+    "id": "u-inorins-2",
+    "name": "Sujan Prajapati",
+    "email": "sujan@inorins.com",
+    "password": "scrypt$2371f412ad623781178d161cf8a8100f$1876eb643f1fd3a8a30271ec7fab9133e2ca027bc125c7e091d8444a81bb5e2ae12cb00496d54052098cccfc4e042c5954897d92890939213aa492228fa63a40",
+    "role": "inorins",
+    "title": "Support Engineer"
+  },
+  {
+    "id": "u-inorins-3",
+    "name": "Maheshwor Prajapati",
+    "email": "maheshwor@inorins.com",
+    "password": "scrypt$69ba928ed7f59f8f0cab75dbe8dc45e3$d0de59200150cd22c758711f709a925bf35471e6e44ce94370a52a6614d0b004e62eeadef4e491240f3fc50bc03da701149cc0e8890ba17bed5305fcce23430c",
+    "role": "inorins",
+    "title": "Support Engineer"
+  },
+  {
+    "id": "u-inorins-4",
+    "name": "Ramendra Pradhananga",
+    "email": "ramendra@inorins.com",
+    "password": "scrypt$bce3f674424a3b56354c95ca5a02b35d$16b7974f14932cd7645d7054d167c6dab97604e54165569010f677a4cd33bf32913deeb83eaf2eabb6f40bf73819816ef5303800d4186001ebdfcece4d5b56fb",
+    "role": "inorins",
+    "title": "Support",
+    "bankName": "",
+    "bankDomain": "",
+    "bankShortCode": ""
+  },
+  {
+    "id": "u-inorins-5",
+    "name": "Slok Regmi",
+    "email": "slok@inorins.com",
+    "password": "scrypt$afd63f2c4c7abd5d941f563ec39a9cc9$1d7f5b5789a4c6c58a388c9f0d30e9235a421a20cef501b1d6714ac86be3e5644c114408a6eb19cda9a8d8742a9dd087e84cf44689374549a22079808a2644cd",
+    "role": "inorins",
+    "title": "Support Engineer"
+  },
+  {
+    "id": "u-inorins-6",
+    "name": "Inorins Admin",
+    "email": "inorins@inorins.com",
+    "password": "scrypt$21fb2c53335f9855523bc1de25988a95$680e27041ceb1651ae344a4eb51883705a1730ded0191a44f5b1ac19e2e10cec2b06a4d1cc520ce633b999ea66d9045f3bdf94e185f8e4b7cf41a9625691b466",
+    "role": "inorins",
+    "title": "Support Admin"
+  },
+  {
+    "id": "u-client-1",
+    "name": "Guheshwori Admin",
+    "email": "admin@guheshwori.com.np",
+    "password": "scrypt$891bac3cff1995afb00536281dfbfe1a$a9b5fd1c808a88586406a5c3685479df5b2ae7e98e2ef11ee676dfacb8a78561e65a1682dab346e2968ae684eb4a9e7eab5b60fcedf7b91544cfc9ca5b53b046",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Guheshwori",
+    "bankDomain": "guheshwori.com.np",
+    "bankShortCode": "GH"
+  },
+  {
+    "id": "u-client-2",
+    "name": "Reliance Admin",
+    "email": "admin@reliance.com.np",
+    "password": "scrypt$2231c67818888ae983208c17cd5eefc5$93516b25d72fa5201e397c06a9e23a14d122cf9436c6e69346fa25f209a5823bc38915e2d1635f627da94afa5512626dbd8708ea17dfec9e5197968c02858c86",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Reliance",
+    "bankDomain": "reliancebank.com.np",
+    "bankShortCode": "RL"
+  },
+  {
+    "id": "u-client-3",
+    "name": "Progressive Admin",
+    "email": "admin@progressivebank.com.np",
+    "password": "scrypt$8477b2fbec9fbaf0892077b4ee4c6ca2$fcb4304bd1137cbe5a7751e125ca95b7803cb8ab895bd897e05fccc0c9ae0eb435d0cdcb6f3a53e5761d450c27e2c7fca9ba9262895ebd04d3c3adeb2aabf90d",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Progressive",
+    "bankDomain": "progressivebank.com.np",
+    "bankShortCode": "PG"
+  },
+  {
+    "id": "u-client-4",
+    "name": "Ganapati Admin",
+    "email": "admin@ganapatibank.com.np",
+    "password": "scrypt$f0bf32633b72439a596a47d2e224c939$5cb333632f33cc8518752212ce946948957a974e66fe4776212a772d6b73a5dbdfc9c26548ca202e195f874a48a8c74262f0718fb4241ff9a57e18fa35c7ffc8",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Ganapati",
+    "bankDomain": "ganapatibank.com.np",
+    "bankShortCode": "GN"
+  },
+  {
+    "id": "u-client-5",
+    "name": "Goodwill Admin",
+    "email": "admin@goodwillbank.com.np",
+    "password": "scrypt$78db8e9d5b0c8ad2e16b9e8bb27519bd$b3dd24d509f2646c06000e472d1f44e9f66e0922e791320a8d0d47ffb7cf740fa169b2c09fde153f1284feb02144562cdfa89cf863d52c2cd0e733797a20a8f3",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Goodwill",
+    "bankDomain": "goodwillbank.com.np",
+    "bankShortCode": "GW"
+  },
+  {
+    "id": "u-client-6",
+    "name": "Shree Finance Admin",
+    "email": "admin@shreefinance.com.np",
+    "password": "scrypt$51cb3feeeace563333471aa9d95935f3$d5f4f7dc4d74685df7e0a730e2c5a0b708f3816168b5346e3098b0893a8e23325bb8522a920fba3e8c9305ac7018b54f725cbd26bd76b86b2cfda5ccf7d1a2dc",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Shree Finance",
+    "bankDomain": "shreefinance.com.np",
+    "bankShortCode": "SF"
+  },
+  {
+    "id": "u-client-7",
+    "name": "Durdristi Admin",
+    "email": "admin@durdristi.com.np",
+    "password": "scrypt$053591bb35bf1a421b21603151dccc2e$e1bf6033d5bda853471a86784cc6db1c5fbedbe08eb0e635bf7aa14c8cf7912590e3a3329d3fed97224fd95098ecbcd4b91151185347f78c89d945e35ef024e5",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Durdristi",
+    "bankDomain": "durdristi.com.np",
+    "bankShortCode": "DD"
+  },
+  {
+    "id": "u-client-8",
+    "name": "Gurkhas Admin",
+    "email": "admin@gurkhas.com.np",
+    "password": "scrypt$ffdbb1cadd75a820356cef6c36334b13$347580dc3a017fe8392daf401d0396e4006871d6941c47b8e089076c3d768a0035e01c82437a6f0b92a23ade26beb43bfc9b3539ce787c7237514200dc6d33c2",
+    "role": "client",
+    "title": "IT Administrator",
+    "bankName": "Gurkhas",
+    "bankDomain": "gurkhas.com.np",
+    "bankShortCode": "GH"
+  }
+]

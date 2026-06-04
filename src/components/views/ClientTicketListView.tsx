@@ -81,10 +81,18 @@ export function ClientTicketListView({ onViewTicket, onNewRequest }: ClientTicke
   const inProgressCount = myTickets.filter((t) => t.status === 'In Progress').length;
   const resolvedCount = myTickets.filter((t) => t.status === 'Resolved').length;
 
+  const monthStart = new Date();
+  monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  const resolvedThisMonth = myTickets.filter(
+    (t) => (t.status === 'Resolved' || t.status === 'Closed') && new Date(t.updatedAt ?? t.createdAt) >= monthStart
+  ).length;
+  const pendingClientCount = myTickets.filter((t) => t.status === 'Pending Client').length;
+
   const kpiCards = [
     { label: 'Open', value: openCount, icon: AlertTriangle, color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'In Progress', value: inProgressCount, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
-    { label: 'Resolved', value: resolvedCount, icon: TicketCheck, color: 'text-success', bg: 'bg-success/10' },
+    { label: 'Awaiting Your Reply', value: pendingClientCount, icon: FileText, color: 'text-warning', bg: 'bg-warning/10' },
+    { label: 'Resolved This Month', value: resolvedThisMonth, icon: TicketCheck, color: 'text-success', bg: 'bg-success/10' },
   ];
 
   return (
@@ -93,7 +101,7 @@ export function ClientTicketListView({ onViewTicket, onNewRequest }: ClientTicke
 
 
       {/* KPI strip */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpiCards.map((k) => (
           <div key={k.label} className="bg-card rounded-lg border border-border p-4 flex items-center gap-4">
             <div className={cn('p-2.5 rounded-lg', k.bg)}>

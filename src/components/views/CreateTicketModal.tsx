@@ -73,11 +73,12 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
   const [title, setTitle] = useState('');
   const [bankName, setBankName] = useState('');
   const [description, setDescription] = useState('');
-  const [requestType, setRequestType] = useState<'Issue' | 'Add Form' | 'Add Report'>('Issue');
+  const [requestType, setRequestType] = useState<'Issue' | 'Add Form' | 'Add Report' | 'Update'>('Issue');
   const [priority, setPriority] = useState('');
   const [system, setSystem] = useState('');
   const [module, setModule] = useState('');
   const [form, setForm] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploadError, setUploadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -164,11 +165,12 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
     setTitle('');
     setBankName('');
     setDescription('');
-    setRequestType('Issue');
+    setRequestType('Issue' as 'Issue' | 'Add Form' | 'Add Report' | 'Update');
     setPriority('');
     setSystem('');
     setModule('');
     setForm('');
+    setContactEmail('');
     setAttachments([]);
     setUploadError('');
     setSubmitError('');
@@ -197,6 +199,7 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
         system,
         module,
         form,
+        contactEmail: contactEmail.trim(),
         environment: 'Production',
         reporter: user?.name,
         reporterEmail: user?.email,
@@ -275,15 +278,26 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <Label>Additional Contact Email <span className="text-primary">*</span></Label>
+              <Input
+                type="email"
+                placeholder="e.g. manager@bank.com"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Ticket notifications will also be sent to this address.</p>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Request Type</Label>
-                <Select value={requestType} onValueChange={(value) => setRequestType(value as 'Issue' | 'Add Form' | 'Add Report')}>
+                <Select value={requestType} onValueChange={(value) => setRequestType(value as 'Issue' | 'Add Form' | 'Add Report' | 'Update')}>
                   <SelectTrigger><SelectValue placeholder="Select request type" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Issue">Issue / Bug</SelectItem>
                     <SelectItem value="Add Form">New Form Request</SelectItem>
                     <SelectItem value="Add Report">New Report Request</SelectItem>
+                    <SelectItem value="Update">Update Request</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -409,7 +423,7 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
           <Button
             onClick={() => step < 3 ? setStep(step + 1) : handleSubmit()}
             size="sm"
-            disabled={isSubmitting || (step === 1 && (!title.trim() || !priority))}
+            disabled={isSubmitting || (step === 1 && (!title.trim() || !priority || !contactEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())))}
           >
             {step === 3 ? (isSubmitting ? 'Submitting…' : 'Submit Ticket') : 'Next'}
           </Button>

@@ -1,15 +1,19 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
-  TicketCheck, Clock, AlertTriangle, ArrowUpRight, RefreshCw,
+  TicketCheck, Clock, AlertTriangle, RefreshCw,
   Download, Filter, X, CornerUpRight,
+  CheckSquare, Square, UserCheck, XCircle, Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTickets } from '@/hooks/useTicketsData';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/services/api';
 import type { Priority, TicketStatus, Ticket } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const SLA_HOURS: Record<Priority, number> = {
   Critical: 4,
@@ -92,7 +96,6 @@ function StatusBadge({ status }: { status: TicketStatus }) {
   return <Badge className={styles[status]}>{status}</Badge>;
 }
 
-const ACTIVE_STATUSES = new Set<TicketStatus>(['Open', 'In Progress', 'Pending Client']);
 
 interface DashboardViewProps {
   onViewTicket: (id: string) => void;
@@ -186,19 +189,19 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterSystem, setFilterSystem] = useState<string>('all');
   const [filterBank, setFilterBank] = useState<string>('all');
-  const [showAll, setShowAll] = useState(false);
+  const [myQueueOnly, setMyQueueOnly] = useState(false);
+
+  const myQueueCount = useMemo(() =>
+    tickets.filter((t) => t.assignee === user?.name && t.status !== 'Resolved' && t.status !== 'Closed').length,
+    [tickets, user]
+  );
 
   const systems = useMemo(() => [...new Set(tickets.map((t) => t.system))], [tickets]);
   const banks = useMemo(() => [...new Set(tickets.map(resolveTicketBankName))].sort(), [tickets]);
 
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
-      if (!isAdmin && user?.role === 'inorins' && user?.name) {
-        const assignee = (t.assignee ?? '').trim().toLowerCase();
-        if (assignee && assignee !== user.name.toLowerCase()) return false;
-      }
-      const isActive = ACTIVE_STATUSES.has(t.status as TicketStatus);
-      if (showAll ? isActive : !isActive) return false;
+      if (myQueueOnly && t.assignee !== user?.name) return false;
       if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
       if (filterStatus !== 'all' && t.status !== filterStatus) return false;
       if (filterSystem !== 'all' && t.system !== filterSystem) return false;
@@ -214,7 +217,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
       }
       return true;
     });
-  }, [tickets, filterPriority, filterStatus, filterSystem, filterBank, searchQuery, user, showAll, isAdmin]);
+  }, [tickets, filterPriority, filterStatus, filterSystem, filterBank, searchQuery]);
 
   const kpiCards = useMemo(() => [
     {
@@ -237,14 +240,58 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
     },
   ], [tickets]);
 
-  const hasFilters = filterPriority !== 'all' || filterStatus !== 'all' || filterSystem !== 'all' || filterBank !== 'all' || showAll;
+  const hasFilters = filterPriority !== 'all' || filterStatus !== 'all' || filterSystem !== 'all' || filterBank !== 'all' || myQueueOnly;
 
   const clearFilters = () => {
     setFilterPriority('all');
     setFilterStatus('all');
     setFilterSystem('all');
     setFilterBank('all');
-    setShowAll(false);
+    setMyQueueOnly(false);
+  };
+
+  // ── Bulk actions ─────────────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<'status' | 'assign'>('status');
+  const [bulkValue, setBulkValue] = useState('');
+  const queryClient = useQueryClient();
+
+  const bulkMutation = useMutation({
+    mutationFn: ({ ids, action, value }: { ids: string[]; action: 'status' | 'assign'; value: string }) =>
+      api.bulkUpdateTickets(ids, action, value),
+    onSuccess: (data) => {
+      toast.success(`Updated ${data.updated} ticket${data.updated !== 1 ? 's' : ''}`);
+      setSelectedIds(new Set());
+      setBulkValue('');
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const allFilteredIds = filtered.map((t) => t.id);
+  const allSelected = allFilteredIds.length > 0 && allFilteredIds.every((id) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allFilteredIds));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const applyBulkAction = () => {
+    if (!bulkValue || selectedIds.size === 0) return;
+    bulkMutation.mutate({ ids: [...selectedIds], action: bulkAction, value: bulkValue });
   };
 
   return (
@@ -284,7 +331,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpiCards.map((kpi) => (
           <div key={kpi.label} className="bg-card rounded-lg border border-border p-5 flex items-start justify-between">
             <div>
@@ -298,6 +345,27 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
             </div>
           </div>
         ))}
+        {isInorins && (
+          <button
+            onClick={() => setMyQueueOnly((p) => !p)}
+            className={cn(
+              'rounded-lg border p-5 flex items-start justify-between transition-colors text-left',
+              myQueueOnly
+                ? 'bg-secondary/10 border-secondary/30'
+                : 'bg-card border-border hover:bg-surface/60'
+            )}
+          >
+            <div>
+              <p className={cn('text-sm font-medium', myQueueOnly ? 'text-secondary' : 'text-muted-foreground')}>My Queue</p>
+              <p className={cn('text-3xl font-bold mt-1', myQueueOnly ? 'text-secondary' : 'text-foreground')}>
+                {isLoading ? '—' : myQueueCount}
+              </p>
+            </div>
+            <div className={cn('p-2.5 rounded-lg', myQueueOnly ? 'bg-secondary/20 text-secondary' : 'bg-surface text-muted-foreground')}>
+              <UserCheck className="h-5 w-5" />
+            </div>
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -334,19 +402,12 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{showAll ? 'All Resolved/Closed' : 'All Active'}</SelectItem>
-            {showAll ? (
-              <>
-                <SelectItem value="Resolved">Resolved</SelectItem>
-                <SelectItem value="Closed">Closed</SelectItem>
-              </>
-            ) : (
-              <>
-                <SelectItem value="Open">Open</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Pending Client">Pending Client</SelectItem>
-              </>
-            )}
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="Open">Open</SelectItem>
+            <SelectItem value="In Progress">In Progress</SelectItem>
+            <SelectItem value="Pending Client">Pending Client</SelectItem>
+            <SelectItem value="Resolved">Resolved</SelectItem>
+            <SelectItem value="Closed">Closed</SelectItem>
           </SelectContent>
         </Select>
 
@@ -362,17 +423,6 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
           </SelectContent>
         </Select>
 
-        <button
-          onClick={() => { setShowAll((v) => !v); setFilterStatus('all'); }}
-          className={cn(
-            'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
-            showAll
-              ? 'bg-secondary/10 text-secondary border-secondary/30'
-              : 'bg-card text-muted-foreground border-border hover:bg-accent'
-          )}
-        >
-          Resolved / Closed
-        </button>
 
         {hasFilters && (
           <button
@@ -395,22 +445,67 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
 
       {/* Tickets Table */}
       <div className="bg-card rounded-lg border border-border">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-foreground">
-            {showAll ? 'Resolved / Closed Tickets' : 'Active Tickets'}
-          </h2>
-          <button
-            onClick={() => { setShowAll((v) => !v); setFilterStatus('all'); }}
-            className="text-sm text-primary font-medium flex items-center gap-1 hover:underline"
-          >
-            {showAll ? 'View Active' : 'View Resolved / Closed'}
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </button>
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="font-semibold text-foreground">All Tickets</h2>
+          {/* Bulk action toolbar — only visible when items are selected */}
+          {someSelected && isInorins && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+              <Select value={bulkAction} onValueChange={(v) => setBulkAction(v as 'status' | 'assign')}>
+                <SelectTrigger className="h-7 w-28 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="status">Set Status</SelectItem>
+                  <SelectItem value="assign">Assign To</SelectItem>
+                </SelectContent>
+              </Select>
+              {bulkAction === 'status' ? (
+                <Select value={bulkValue} onValueChange={setBulkValue}>
+                  <SelectTrigger className="h-7 w-36 text-xs">
+                    <SelectValue placeholder="Pick status…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Open">Open</SelectItem>
+                    <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Pending Client">Pending Client</SelectItem>
+                    <SelectItem value="Resolved">Resolved</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <input
+                  className="h-7 px-2 rounded-md border border-border text-xs bg-background w-36 focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Assignee name…"
+                  value={bulkValue}
+                  onChange={(e) => setBulkValue(e.target.value)}
+                />
+              )}
+              <Button size="sm" className="h-7 text-xs gap-1" onClick={applyBulkAction} disabled={!bulkValue || bulkMutation.isPending}>
+                <UserCheck className="h-3.5 w-3.5" />
+                Apply
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => { setSelectedIds(new Set()); setBulkValue(''); }}>
+                <XCircle className="h-3.5 w-3.5" />
+                Cancel
+              </Button>
+            </div>
+          )}
+          {!someSelected && (
+            <span className="text-xs text-muted-foreground">{filtered.length} ticket{filtered.length !== 1 ? 's' : ''}</span>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface">
+                {isInorins && (
+                  <th className="px-3 py-3 w-8">
+                    <button onClick={toggleAll} className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                      {allSelected ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+                    </button>
+                  </th>
+                )}
                 <th className="text-left px-5 py-3 font-medium text-muted-foreground">ID</th>
                 <th className="text-left px-5 py-3 font-medium text-muted-foreground">Title</th>
                 <th className="text-left px-5 py-3 font-medium text-muted-foreground">System</th>
@@ -425,7 +520,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
-                    {Array.from({ length: 8 }).map((__, j) => (
+                    {Array.from({ length: isInorins ? 9 : 8 }).map((__, j) => (
                       <td key={j} className="px-5 py-3.5">
                         <div className="h-4 bg-muted rounded animate-pulse w-24" />
                       </td>
@@ -434,7 +529,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={isInorins ? 9 : 8} className="px-5 py-10 text-center text-sm text-muted-foreground">
                     No tickets match the current filters.
                   </td>
                 </tr>
@@ -442,13 +537,20 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
                 filtered.map((t) => {
                   const sla = getSLAInfo(t);
                   const isUnread = isInorins && !viewedIds.has(t.id);
+                  const isChecked = selectedIds.has(t.id);
                   return (
                     <tr
                       key={t.id}
-                      onClick={() => handleViewTicket(t.id)}
-                      className="border-b border-border last:border-0 hover:bg-surface/60 cursor-pointer transition-colors"
+                      className={cn('border-b border-border last:border-0 hover:bg-surface/60 transition-colors', isChecked && 'bg-primary/5')}
                     >
-                      <td className="px-5 py-3.5">
+                      {isInorins && (
+                        <td className="px-3 py-3.5" onClick={(e) => { e.stopPropagation(); toggleOne(t.id); }}>
+                          <button className="flex items-center justify-center text-muted-foreground hover:text-primary transition-colors">
+                            {isChecked ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+                          </button>
+                        </td>
+                      )}
+                      <td className="px-5 py-3.5 cursor-pointer" onClick={() => handleViewTicket(t.id)}>
                         <div className="flex items-center gap-2">
                           {isUnread && (
                             <span className="inline-block h-2 w-2 rounded-full bg-primary flex-shrink-0" />
@@ -456,7 +558,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
                           <span className={cn('font-mono text-xs font-semibold text-secondary', !isUnread && 'ml-4')}>{t.id}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 max-w-xs">
+                      <td className="px-5 py-3.5 max-w-xs cursor-pointer" onClick={() => handleViewTicket(t.id)}>
                         <div className="flex items-center gap-2 min-w-0">
                           <span className={cn('truncate', isUnread ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground')}>{t.title}</span>
                           {t.isEdited && (
@@ -472,16 +574,16 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 cursor-pointer" onClick={() => handleViewTicket(t.id)}>
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-secondary/10 text-secondary border border-secondary/20">
                           {t.system}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-foreground">{resolveTicketBankName(t)}</td>
-                      <td className="px-5 py-3.5"><PriorityBadge priority={t.priority} /></td>
-                      <td className="px-5 py-3.5"><StatusBadge status={t.status} /></td>
-                      <td className={cn('px-5 py-3.5 text-xs', sla.className)}>{sla.label}</td>
-                      <td className="px-5 py-3.5 text-muted-foreground">{t.lastUpdated}</td>
+                      <td className="px-5 py-3.5 text-sm text-foreground cursor-pointer" onClick={() => handleViewTicket(t.id)}>{resolveTicketBankName(t)}</td>
+                      <td className="px-5 py-3.5 cursor-pointer" onClick={() => handleViewTicket(t.id)}><PriorityBadge priority={t.priority} /></td>
+                      <td className="px-5 py-3.5 cursor-pointer" onClick={() => handleViewTicket(t.id)}><StatusBadge status={t.status} /></td>
+                      <td className={cn('px-5 py-3.5 text-xs cursor-pointer', sla.className)} onClick={() => handleViewTicket(t.id)}>{sla.label}</td>
+                      <td className="px-5 py-3.5 text-muted-foreground cursor-pointer" onClick={() => handleViewTicket(t.id)}>{t.lastUpdated}</td>
                     </tr>
                   );
                 })

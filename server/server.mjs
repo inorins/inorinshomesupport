@@ -420,6 +420,11 @@ app.post("/api/auth/login", async (req, res, next) => {
       return;
     }
 
+    if (found.isActive === false) {
+      res.status(403).json({ message: "Your account has been deactivated. Please contact an administrator." });
+      return;
+    }
+
     res.json({ user: sanitizeUser(found), token: createSessionToken(found) });
   } catch (error) {
     next(error);
@@ -687,6 +692,16 @@ app.patch("/api/tickets/:id/status", async (req, res, next) => {
       return;
     }
 
+    // Require an assignee before moving to In Progress or Pending Client
+    if (status === 'In Progress' || status === 'Pending Client') {
+      const tickets = await loadTickets();
+      const ticket = tickets.find((t) => t.id === req.params.id);
+      if (ticket && !ticket.assignee?.trim()) {
+        res.status(400).json({ message: "Please assign this ticket to a team member before changing the status." });
+        return;
+      }
+    }
+
     const now = new Date().toISOString();
     const updated = await updateTicketById(req.params.id, (ticket) => {
       const update = { ...ticket, status, updatedAt: now };
@@ -721,6 +736,14 @@ app.patch("/api/tickets/:id/resolve", async (req, res, next) => {
     const status = req.body?.status;
     if (!['Resolved', 'Closed'].includes(status)) {
       res.status(400).json({ message: "Status must be Resolved or Closed." });
+      return;
+    }
+
+    // Require an assignee before resolving
+    const tickets = await loadTickets();
+    const existingTicket = tickets.find((t) => t.id === req.params.id);
+    if (existingTicket && !existingTicket.assignee?.trim()) {
+      res.status(400).json({ message: "Please assign this ticket to a team member before resolving it." });
       return;
     }
 
@@ -1026,12 +1049,12 @@ app.get("/api/stats", async (_req, res, next) => {
 app.get("/api/download/:ticketId/:filename", async (req, res, next) => {
   try {
     const { ticketId, filename } = req.params;
-    const filePath = path.join(__dirname, 'uploads', ticketId, decodeURIComponent(filename));
-    
+    const filePath = path.join(__dirname, 'uploads', ticketId, filename);
+
     // Security check: ensure path is within uploads/ticketId directory
     const resolvedPath = path.resolve(filePath);
     const uploadDir = path.resolve(path.join(__dirname, 'uploads', ticketId));
-    if (!resolvedPath.startsWith(uploadDir)) {
+    if (!resolvedPath.startsWith(uploadDir + path.sep)) {
       res.status(403).json({ message: "Access denied." });
       return;
     }
@@ -1059,7 +1082,7 @@ app.get("/api/download/:ticketId/:filename", async (req, res, next) => {
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
     
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Disposition', `inline; filename="${decodeURIComponent(filename)}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');

@@ -72,7 +72,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
 
-  const [requestType, setRequestType] = useState<'Issue' | 'Add Form' | 'Add Report'>('Issue');
+  const [requestType, setRequestType] = useState<'Issue' | 'Add Form' | 'Add Report' | 'Update'>('Issue');
   const [requestedDelivery, setRequestedDelivery] = useState('Flexible');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -81,6 +81,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
   const [contactName, setContactName] = useState(user?.name ?? '');
   const [contactDesignation, setContactDesignation] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
 
   const [system, setSystem] = useState('');
   const [module, setModule] = useState('');
@@ -99,7 +100,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
 
   const canNextStep1 = requestType.length > 0 && title.trim().length > 0 &&
     (requestType === 'Issue' ? priority.length > 0 : true) &&
-    contactName.trim().length > 0 && contactDesignation.trim().length > 0 && contactPhone.trim().length > 0;
+    contactName.trim().length > 0 && contactDesignation.trim().length > 0 && contactPhone.trim().length > 0 && contactEmail.trim().length > 0;
   const canNextStep2 = system.length > 0 && module.length > 0 && form.length > 0;
   const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
   const ACCEPTED_ATTACHMENT_TYPES = [
@@ -114,7 +115,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
 
   const resetForm = () => {
     setStep(1);
-    setRequestType('Issue');
+    setRequestType('Issue' as 'Issue' | 'Add Form' | 'Add Report' | 'Update');
     setRequestedDelivery('Flexible');
     setTitle('');
     setDescription('');
@@ -122,6 +123,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
     setContactName(user?.name ?? '');
     setContactDesignation('');
     setContactPhone('');
+    setContactEmail('');
     setSystem('');
     setModule('');
     setModuleDetails('');
@@ -209,6 +211,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
         environment: 'Production',
         reporter: user?.name,
         reporterEmail: user?.email,
+        contactEmail: contactEmail.trim() || undefined,
         contactName: contactName.trim(),
         contactDesignation: contactDesignation.trim(),
         contactPhone: contactPhone.trim(),
@@ -293,12 +296,13 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
         <div className="space-y-4 bg-card rounded-lg border border-border p-5">
           <div className="space-y-1.5">
             <Label>Request Type <span className="text-primary">*</span></Label>
-            <Select value={requestType} onValueChange={(value) => setRequestType(value as 'Issue' | 'Add Form' | 'Add Report')}>
+            <Select value={requestType} onValueChange={(value) => setRequestType(value as 'Issue' | 'Add Form' | 'Add Report' | 'Update')}>
               <SelectTrigger><SelectValue placeholder="Select request type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Issue">Issue / Bug</SelectItem>
                 <SelectItem value="Add Form">New Form Request</SelectItem>
                 <SelectItem value="Add Report">New Report Request</SelectItem>
+                <SelectItem value="Update">Update Request</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -310,21 +314,25 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
                   ? 'Brief summary of the form request'
                   : requestType === 'Add Report'
                     ? 'Brief summary of the report request'
-                    : 'Brief summary of the problem'
+                    : requestType === 'Update'
+                      ? 'Brief summary of the update request'
+                      : 'Brief summary of the problem'
               }
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
-            <Label>{requestType === 'Add Form' ? 'Form Request Details' : requestType === 'Add Report' ? 'Report Request Details' : 'Description'}</Label>
+            <Label>{requestType === 'Add Form' ? 'Form Request Details' : requestType === 'Add Report' ? 'Report Request Details' : requestType === 'Update' ? 'Update Request Details' : 'Description'}</Label>
             <Textarea
               placeholder={
                 requestType === 'Add Form'
                   ? 'Explain what the new form should do, what fields are required, and any special rules or validations.'
                   : requestType === 'Add Report'
                     ? 'Explain what the report should include, filters, grouping, schedule, and who will use it.'
-                    : 'Describe the issue in detail — steps to reproduce, error messages, affected users...'
+                    : requestType === 'Update'
+                      ? 'Describe what needs to be updated, the current behavior, and the expected outcome.'
+                      : 'Describe the issue in detail — steps to reproduce, error messages, affected users...'
               }
               rows={5}
               value={description}
@@ -386,6 +394,16 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
                 onChange={(e) => setContactPhone(e.target.value)}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label>Additional Contact Email <span className="text-primary">*</span></Label>
+              <Input
+                type="email"
+                placeholder="e.g. manager@bank.com"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Ticket updates will also be emailed to this address.</p>
+            </div>
           </div>
         </div>
       )}
@@ -398,7 +416,9 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
               ? 'Choose the system, module, and form related to the new form request. If you do not know the exact module, leave it as Not sure and describe the area.'
               : requestType === 'Add Report'
                 ? 'Choose the system, module, and report area related to the report request. If you do not know the exact module, leave it as Not sure and describe the area.'
-                : 'Select the Inorins system, module, and form where the issue occurred.'}
+                : requestType === 'Update'
+                  ? 'Choose the system, module, and form related to the update request. If you do not know the exact module, leave it as Not sure and describe the area.'
+                  : 'Select the Inorins system, module, and form where the issue occurred.'}
           </p>
           <div className="space-y-1.5">
             <Label>System <span className="text-primary">*</span></Label>

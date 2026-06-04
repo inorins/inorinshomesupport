@@ -16,20 +16,26 @@ type UserWithActive = AppUser & { isActive?: boolean };
 
 type DialogMode = 'create' | 'edit' | 'reset-password' | null;
 
+const DEPARTMENTS = ['CBS', 'ECL', 'DCH', 'Support', 'Development', 'QA', 'Management'];
+
 interface UserFormState {
   name: string;
   email: string;
   password: string;
   role: 'inorins' | 'client';
   title: string;
+  department: string;
+  defaultMail: string;
   bankName: string;
   bankDomain: string;
   bankShortCode: string;
+  isDepartmentHead: boolean;
 }
 
 const emptyForm: UserFormState = {
   name: '', email: '', password: '', role: 'client',
-  title: '', bankName: '', bankDomain: '', bankShortCode: '',
+  title: '', department: '', defaultMail: '', bankName: '', bankDomain: '', bankShortCode: '',
+  isDepartmentHead: false,
 };
 
 export function AdminUsersView() {
@@ -84,13 +90,17 @@ export function AdminUsersView() {
 
   function openEdit(u: UserWithActive) {
     setSelectedUser(u);
+    const u2 = u as UserWithActive & { isDepartmentHead?: boolean; defaultMail?: string };
     setForm({
       name: u.name, email: u.email, password: '',
       role: u.role as 'inorins' | 'client',
       title: u.title ?? '',
+      department: (u as UserWithActive & { department?: string }).department ?? '',
+      defaultMail: u2.defaultMail ?? '',
       bankName: u.bankName ?? '',
       bankDomain: u.bankDomain ?? '',
       bankShortCode: u.bankShortCode ?? '',
+      isDepartmentHead: Boolean(u2.isDepartmentHead),
     });
     setError('');
     setDialogMode('edit');
@@ -162,6 +172,7 @@ export function AdminUsersView() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium">Name</th>
                 <th className="text-left px-4 py-3 font-medium">Email</th>
+                <th className="text-left px-4 py-3 font-medium">Default Mail</th>
                 <th className="text-left px-4 py-3 font-medium">Role</th>
                 <th className="text-left px-4 py-3 font-medium">Title / Bank</th>
                 <th className="text-left px-4 py-3 font-medium">Status</th>
@@ -173,6 +184,11 @@ export function AdminUsersView() {
                 <tr key={u.id} className={cn('hover:bg-muted/30', u.isActive === false && 'opacity-50')}>
                   <td className="px-4 py-3 font-medium">{u.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {(u as UserWithActive & { defaultMail?: string }).defaultMail
+                      ? <span className="text-xs font-medium text-foreground">{(u as UserWithActive & { defaultMail?: string }).defaultMail}</span>
+                      : <span className="text-xs italic">same as email</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge variant={u.role === 'inorins' ? 'default' : 'secondary'}>
                       {u.role === 'inorins' ? 'Staff' : 'Client'}
@@ -209,7 +225,7 @@ export function AdminUsersView() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">No users found.</td>
+                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">No users found.</td>
                 </tr>
               )}
             </tbody>
@@ -254,6 +270,40 @@ export function AdminUsersView() {
               <Label>Title / Designation</Label>
               <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Support Engineer" />
             </div>
+            <div className="space-y-1">
+              <Label>Default Mail</Label>
+              <Input
+                type="email"
+                value={form.defaultMail}
+                onChange={(e) => setForm({ ...form, defaultMail: e.target.value })}
+                placeholder="Override email for all notifications (optional)"
+              />
+              <p className="text-xs text-muted-foreground">All system emails will be sent to this address instead of the login email.</p>
+            </div>
+            {form.role === 'inorins' && (
+              <>
+                <div className="space-y-1">
+                  <Label>Department</Label>
+                  <Select value={form.department} onValueChange={(v) => setForm({ ...form, department: v === '_none' ? '' : v })}>
+                    <SelectTrigger><SelectValue placeholder="Select department (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">— None —</SelectItem>
+                      {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input accent-primary"
+                    checked={form.isDepartmentHead}
+                    onChange={(e) => setForm({ ...form, isDepartmentHead: e.target.checked })}
+                  />
+                  <span className="text-sm font-medium">Department Head</span>
+                  <span className="text-xs text-muted-foreground">(receives ticket alert emails)</span>
+                </label>
+              </>
+            )}
             {form.role === 'client' && (
               <>
                 <div className="space-y-1">

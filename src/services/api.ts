@@ -1,4 +1,4 @@
-import type { Ticket, ChatMessage, ResolutionNote, AppNotification } from '@/data/mockData';
+import type { Ticket, ChatMessage, ResolutionNote, AppNotification, TicketLinkEntry, SystemChange, SystemChangeBank, RolePermission, TicketSystemChangeLink, AuditLog, StatsBreakdown, TicketWatcher, UserSession } from '@/data/mockData';
 import type { AppUser } from '@/data/users';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
@@ -77,6 +77,7 @@ export const api = {
   },
   getUser: (id: string) => request<AuthUser>(`/auth/users/${id}`),
   getDemoUsers: () => request<AuthUser[]>('/auth/demo-users'),
+  getMyPermissions: () => request<import('@/data/mockData').RolePermission>('/auth/me/permissions'),
 
   // Tickets
   getTickets: () => request<Ticket[]>('/tickets'),
@@ -132,9 +133,9 @@ export const api = {
 
   // Admin user management
   getAdminUsers: () => request<AppUser[]>('/admin/users'),
-  createUser: (data: Partial<AppUser> & { password: string }) =>
+  createUser: (data: Partial<AppUser> & { password: string; isDepartmentHead?: boolean }) =>
     request<AppUser>('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
-  updateUser: (id: string, data: Partial<AppUser> & { isActive?: boolean }) =>
+  updateUser: (id: string, data: Partial<AppUser> & { isActive?: boolean; isDepartmentHead?: boolean }) =>
     request<AppUser>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   resetUserPassword: (id: string, newPassword: string) =>
     request<{ message: string }>(`/admin/users/${id}/reset-password`, {
@@ -143,4 +144,115 @@ export const api = {
     }),
   deactivateUser: (id: string) =>
     request<{ message: string }>(`/admin/users/${id}`, { method: 'DELETE' }),
+
+  // System Changes
+  getSystemChanges: (filters?: { status?: string; system?: string; bankName?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.system) params.set('system', filters.system);
+    if (filters?.bankName) params.set('bankName', filters.bankName);
+    const qs = params.toString();
+    return request<SystemChange[]>(`/system-changes${qs ? `?${qs}` : ''}`);
+  },
+  createSystemChange: (data: Record<string, unknown>) =>
+    request<SystemChange>('/system-changes', { method: 'POST', body: JSON.stringify(data) }),
+  updateSystemChange: (id: number, data: Record<string, unknown>) =>
+    request<SystemChange>(`/system-changes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSystemChange: (id: number) =>
+    request<{ ok: boolean }>(`/system-changes/${id}`, { method: 'DELETE' }),
+  // System change bank tracking
+  getSystemChangeBanks: (changeId: number) =>
+    request<SystemChangeBank[]>(`/system-changes/${changeId}/banks`),
+  setSystemChangeBanks: (changeId: number, banks: { bankName: string; status: 'Pending' | 'Done'; note?: string }[]) =>
+    request<SystemChangeBank[]>(`/system-changes/${changeId}/banks`, { method: 'PUT', body: JSON.stringify({ banks }) }),
+  updateSystemChangeBank: (changeId: number, bankName: string, status: 'Pending' | 'Done', note?: string) =>
+    request<SystemChangeBank>(`/system-changes/${changeId}/banks/${encodeURIComponent(bankName)}`, { method: 'PATCH', body: JSON.stringify({ status, note }) }),
+
+  // System change items
+  getSystemChangeItems: (changeId: number) =>
+    request<import('@/data/mockData').SystemChangeItem[]>(`/system-changes/${changeId}/items`),
+  setSystemChangeItems: (changeId: number, items: Array<{ changeType?: string; objectName?: string; beforeState?: string; afterState?: string }>) =>
+    request<import('@/data/mockData').SystemChangeItem[]>(`/system-changes/${changeId}/items`, { method: 'PUT', body: JSON.stringify({ items }) }),
+
+  // System change ↔ ticket links
+  getSystemChangeTickets: (changeId: number) =>
+    request<TicketSystemChangeLink[]>(`/system-changes/${changeId}/tickets`),
+  linkTicketToChange: (changeId: number, ticketId: string, note?: string) =>
+    request<TicketSystemChangeLink[]>(`/system-changes/${changeId}/tickets`, { method: 'POST', body: JSON.stringify({ ticketId, note }) }),
+  unlinkTicketFromChange: (changeId: number, ticketId: string) =>
+    request<{ ok: boolean }>(`/system-changes/${changeId}/tickets/${encodeURIComponent(ticketId)}`, { method: 'DELETE' }),
+
+  // From ticket side
+  getTicketSystemChanges: (ticketId: string) =>
+    request<TicketSystemChangeLink[]>(`/tickets/${ticketId}/system-changes`),
+  linkChangeToTicket: (ticketId: string, changeId: number, note?: string) =>
+    request<TicketSystemChangeLink[]>(`/tickets/${ticketId}/system-changes`, { method: 'POST', body: JSON.stringify({ changeId, note }) }),
+  unlinkChangeFromTicket: (ticketId: string, changeId: number) =>
+    request<{ ok: boolean }>(`/tickets/${ticketId}/system-changes/${changeId}`, { method: 'DELETE' }),
+
+  // Role permissions
+  getPermissions: () => request<RolePermission[]>('/admin/permissions'),
+  upsertPermission: (data: Partial<RolePermission> & { role: string }) =>
+    request<RolePermission>('/admin/permissions', { method: 'PUT', body: JSON.stringify(data) }),
+  deletePermission: (id: number) =>
+    request<{ ok: boolean }>(`/admin/permissions/${id}`, { method: 'DELETE' }),
+
+  // Ticket links
+  getTicketLinks: (ticketId: string) => request<TicketLinkEntry[]>(`/tickets/${ticketId}/links`),
+  createTicketLink: (ticketId: string, data: { linkedTicketId: string; linkType: 'duplicate' | 'related'; note?: string }) =>
+    request<{ id: number; links: TicketLinkEntry[] }>(`/tickets/${ticketId}/links`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteTicketLink: (ticketId: string, linkId: number) =>
+    request<{ ok: boolean }>(`/tickets/${ticketId}/links/${linkId}`, { method: 'DELETE' }),
+
+  // Ticket watchers
+  getWatchers: (ticketId: string) => request<TicketWatcher[]>(`/tickets/${ticketId}/watchers`),
+  watchTicket: (ticketId: string) => request<TicketWatcher[]>(`/tickets/${ticketId}/watchers`, { method: 'POST' }),
+  unwatchTicket: (ticketId: string, userId: number | 'me') =>
+    request<TicketWatcher[]>(`/tickets/${ticketId}/watchers/${userId}`, { method: 'DELETE' }),
+
+  // Admin session management
+  getSessions: () => request<UserSession[]>('/admin/sessions'),
+  revokeSession: (id: number) => request<{ ok: boolean }>(`/admin/sessions/${id}`, { method: 'DELETE' }),
+  revokeAllUserSessions: (userId: number) => request<{ ok: boolean }>(`/admin/sessions/user/${userId}`, { method: 'DELETE' }),
+
+  // Audit logs (admin only)
+  getAuditLogs: (params?: { action?: string; entityType?: string; entityId?: string; userEmail?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number }) => {
+    const p = new URLSearchParams();
+    if (params?.action)     p.set('action', params.action);
+    if (params?.entityType) p.set('entityType', params.entityType);
+    if (params?.entityId)   p.set('entityId', params.entityId);
+    if (params?.userEmail)  p.set('userEmail', params.userEmail);
+    if (params?.dateFrom)   p.set('dateFrom', params.dateFrom);
+    if (params?.dateTo)     p.set('dateTo', params.dateTo);
+    if (params?.page)       p.set('page', String(params.page));
+    if (params?.limit)      p.set('limit', String(params.limit));
+    const qs = p.toString();
+    return request<{ logs: AuditLog[]; total: number; page: number; limit: number }>(`/admin/audit-logs${qs ? `?${qs}` : ''}`);
+  },
+
+  // Stats breakdown (admin)
+  getStatsBreakdown: () => request<StatsBreakdown>('/tickets/stats/breakdown'),
+
+  // Bulk ticket actions
+  bulkUpdateTickets: (ids: string[], action: 'status' | 'assign', value: string) =>
+    request<{ updated: number }>('/tickets/bulk', { method: 'POST', body: JSON.stringify({ ids, action, value }) }),
+
+  // Ticket reopen
+  reopenTicket: (id: string, reopenNote: string) =>
+    request<Ticket>(`/tickets/${id}/reopen`, { method: 'PATCH', body: JSON.stringify({ reopenNote }) }),
+
+  // Gmail Inbox
+  getInbox: (status?: string) =>
+    request<import('@/hooks/useInboxEmails').InboxResponse>(
+      `/inbox${status ? `?status=${status}` : ''}`
+    ),
+  inboxToTicket: (id: number, data?: Record<string, string>) =>
+    request<{ ticket: unknown; emailId: number }>(`/inbox/${id}/to-ticket`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  dismissInboxEmail: (id: number) =>
+    request<{ ok: boolean }>(`/inbox/${id}`, { method: 'DELETE' }),
+  syncInbox: () =>
+    request<{ message: string }>('/inbox/sync', { method: 'POST' }),
 };

@@ -18,6 +18,9 @@ export interface ResolutionNote {
 
 export interface Ticket {
   id: string;
+  source?: 'portal' | 'email';
+  sourceMessageId?: string;
+  sourceAccountEmail?: string;
   title: string;
   bankName?: string;
   system: string;
@@ -32,6 +35,7 @@ export interface Ticket {
   lastUpdated: string;
   reporter: string;
   reporterEmail: string;
+  contactEmail?: string;
   contactName?: string;
   contactDesignation?: string;
   contactPhone?: string;
@@ -47,8 +51,97 @@ export interface Ticket {
   forwardNote?: string;
   slaBreach?: boolean;
   slaBreachNotifiedAt?: string;
+  reopenCount?: number;
   isEdited?: boolean;
   editedAt?: string;
+  updatedAt?: string;
+}
+
+export interface RolePermission {
+  id: number;
+  userId?: number | null;
+  userName?: string | null;
+  userEmail?: string | null;
+  role: 'inorins' | 'client';
+  department?: string | null;
+  canViewHistoricalTickets: boolean;
+  historicalTicketDays: number;
+  allowedBanks?: string[] | null;
+  canViewOthersOpen: boolean;
+  canViewOthersInProgress: boolean;
+  canViewOthersResolved: boolean;
+  canViewOthersClosed: boolean;
+  canCreateTickets: boolean;
+  canAssignTickets: boolean;
+  canUpdateTickets: boolean;
+  canCloseTickets: boolean;
+  canViewSystemChanges: boolean;
+  canManageSystemChanges: boolean;
+}
+
+export interface SystemChangeBank {
+  id: number;
+  changeId: number;
+  bankName: string;
+  status: 'Pending' | 'Done';
+  note?: string | null;
+  updatedBy?: string | null;
+  updatedAt: string;
+}
+
+export interface SystemChangeItem {
+  id: number;
+  changeId: number;
+  sortOrder: number;
+  changeType?: string;
+  objectName?: string;
+  beforeState?: string;
+  afterState?: string;
+}
+
+export interface SystemChange {
+  id: number;
+  title: string;
+  description?: string;
+  system?: string;
+  module?: string;
+  bankName?: string;
+  status: 'Not Started' | 'In Progress' | 'Completed';
+  /** Legacy single-item fields — kept for backward compat display */
+  changeType?: string;
+  objectName?: string;
+  beforeState?: string;
+  afterState?: string;
+  /** Multi-item support */
+  items?: SystemChangeItem[];
+  createdBy?: string;
+  updatedBy?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketSystemChangeLink {
+  id: number;
+  changeId: number;
+  ticketId: string;
+  note?: string | null;
+  linkedBy?: string | null;
+  createdAt: string;
+  ticket?: { id: string; title: string; status: string; priority: string; bankName?: string };
+  change?: { id: number; title: string; status: string; system?: string; module?: string };
+}
+
+export interface TicketLinkEntry {
+  id: number;
+  primaryTicketId: string;
+  linkedTicketId: string;
+  linkType: 'duplicate' | 'related';
+  note?: string;
+  linkedBy?: string;
+  createdAt: string;
+  primaryTicket: { id: string; title: string; status: string; priority: string; bankName?: string };
+  linkedTicket: { id: string; title: string; status: string; priority: string; bankName?: string };
 }
 
 export type NotificationType = 'ticket_assigned' | 'status_changed' | 'new_client_reply' | 'new_staff_reply' | 'sla_breach' | 'ticket_edited' | 'new_ticket';
@@ -71,6 +164,45 @@ export interface ChatMessage {
   timestamp: string;
   isInternal: boolean;
   attachments?: AttachmentMetadata[];
+}
+
+export interface TicketWatcher {
+  id: number;
+  ticketId: string;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  addedAt: string;
+}
+
+export interface UserSession {
+  id: number;
+  user_id: number;
+  user_name: string;
+  user_email: string;
+  role: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  last_seen_at: string;
+}
+
+export interface AuditLog {
+  id: number;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  user_email: string | null;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface StatsBreakdown {
+  byStatus: { status: string; count: number }[];
+  byPriority: { priority: string; count: number }[];
+  byBank: { bank: string; count: number }[];
+  slaTrend: { date: string; breaches: number; total: number }[];
 }
 
 export const systemModules: Record<string, Record<string, string[]>> = {

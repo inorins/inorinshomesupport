@@ -1,7 +1,10 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag, Phone, Briefcase, CheckCircle2, Timer, CornerUpRight,
+  ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag, Phone, Briefcase, CheckCircle2, Timer, CornerUpRight, Mail, ExternalLink, Link2, Unlink, Plus,
+  UserCheck, RotateCcw, MessageSquare, Bell, BellOff,
 } from 'lucide-react';
+import { AttachmentView } from '@/components/ui/FilePreview';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,20 +20,21 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { useTicket, useTicketMessages } from '@/hooks/useTicketsData';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
-import type { Priority, TicketStatus } from '@/data/mockData';
+import { Input } from '@/components/ui/input';
+import type { Priority, Ticket, TicketStatus, TicketLinkEntry, TicketSystemChangeLink, SystemChange } from '@/data/mockData';
 
 interface TicketDetailViewProps {
   ticketId: string;
   onBack: () => void;
 }
 
-const TEAM_MEMBERS = ['Gaurav Shrestha', 'Sujan Prajapati', 'Maheshwor Prajapati', 'Ramendra Pradhananga', 'Unassigned'];
+// Removed hardcoded TEAM_MEMBERS — staff list is now fetched from the database
 
-const STATUS_OPTIONS: TicketStatus[] = ['Open', 'In Progress', 'Pending Client', 'Resolved', 'Closed'];
+const STATUS_OPTIONS: TicketStatus[] = ['Open', 'In Progress', 'Pending Client', 'Resolved'];
 
 const priorityStyles: Record<Priority, string> = {
   Critical: 'bg-primary/10 text-primary border-primary/20',
@@ -39,10 +43,11 @@ const priorityStyles: Record<Priority, string> = {
   Low: 'bg-muted text-muted-foreground border-border',
 };
 
-const requestTypeStyles: Record<'Issue' | 'Add Form' | 'Add Report', string> = {
+const requestTypeStyles: Record<'Issue' | 'Add Form' | 'Add Report' | 'Update', string> = {
   Issue: 'bg-warning/10 text-warning border-warning/20',
   'Add Form': 'bg-info/10 text-info border-info/20',
   'Add Report': 'bg-primary/10 text-primary border-primary/20',
+  Update: 'bg-secondary/10 text-secondary border-secondary/20',
 };
 
 const statusStyles: Record<TicketStatus, string> = {
@@ -97,6 +102,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const [currentAssignee, setCurrentAssignee] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | null>(null);
+  const [assigneeRequiredFor, setAssigneeRequiredFor] = useState<TicketStatus | null>(null);
 
   const [resolutionSummary, setResolutionSummary] = useState('');
   const [resolutionCause, setResolutionCause] = useState('');
@@ -106,14 +112,128 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const [isResolving, setIsResolving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // "Add to System Change" option on resolve
+  const [addToSystemChange, setAddToSystemChange] = useState(false);
+  const [scTitle, setScTitle] = useState('');
+  const [scStatus, setScStatus] = useState<'Not Started' | 'In Progress' | 'Completed'>('Completed');
+
+
+  const navigate = useNavigate();
+
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardTo, setForwardTo] = useState('');
   const [forwardNote, setForwardNote] = useState('');
   const [isForwarding, setIsForwarding] = useState(false);
 
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkTargetId, setLinkTargetId] = useState('');
+  const [linkSearchQuery, setLinkSearchQuery] = useState('');
+  const [linkType, setLinkType] = useState<'duplicate' | 'related'>('duplicate');
+  const [linkNote, setLinkNote] = useState('');
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkError, setLinkError] = useState('');
+
+  const [showCannedReplies, setShowCannedReplies] = useState(false);
+  const CANNED_REPLIES = [
+    'We have received your ticket and are currently investigating. We will update you shortly.',
+    'Could you please provide more details about the issue, including any error messages you see?',
+    'We have identified the root cause and are working on a fix. Please expect an update within the next business day.',
+    'The fix has been deployed in UAT. Could you please verify from your end?',
+    'This has been resolved. Please confirm that the issue is no longer occurring in your environment.',
+    'This issue requires access to your production environment. Please arrange remote access at your earliest convenience.',
+    'We are coordinating with the development team. We will keep you posted on progress.',
+    'Thank you for the additional details. This helps us narrow down the issue significantly.',
+  ];
+
+  // System change links
+  const [scLinkDialogOpen, setScLinkDialogOpen] = useState(false);
+  const [scLinkSearch, setScLinkSearch] = useState('');
+  const [scLinkNote, setScLinkNote] = useState('');
+  const [isScLinking, setIsScLinking] = useState(false);
+  const [scLinkError, setScLinkError] = useState('');
+
+  const { data: ticketLinks = [] } = useQuery<TicketLinkEntry[]>({
+    queryKey: ['ticket-links', ticketId],
+    queryFn: () => api.getTicketLinks(ticketId),
+    enabled: !!ticketId,
+  });
+
+  const { data: scLinks = [] } = useQuery<TicketSystemChangeLink[]>({
+    queryKey: ['ticket-sc-links', ticketId],
+    queryFn: () => api.getTicketSystemChanges(ticketId),
+    enabled: !!ticketId,
+  });
+
+  const { data: allSystemChanges = [] } = useQuery<SystemChange[]>({
+    queryKey: ['system-changes'],
+    queryFn: () => api.getSystemChanges(),
+    staleTime: 30_000,
+  });
+
+  // Live staff list — uses demo-users so any inorins user (not just admin) can see assignees
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['demo-users'],
+    queryFn: () => api.getDemoUsers(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const staffMembers = allUsers
+    .filter((u) => u.role === 'inorins' && u.isActive !== false)
+    .map((u) => u.name);
+  const assigneeOptions = [...staffMembers, 'Unassigned'];
+
+  const { data: allTickets = [] } = useQuery({
+    queryKey: ['tickets'],
+    queryFn: () => api.getTickets(),
+    enabled: linkDialogOpen,
+  });
+
+  // Watchers
+  const { data: watchers = [], refetch: refetchWatchers } = useQuery({
+    queryKey: ['watchers', ticketId],
+    queryFn: () => api.getWatchers(ticketId),
+    enabled: !!ticketId && user?.role === 'inorins',
+    staleTime: 30_000,
+  });
+  const isWatching = watchers.some((w) => w.userId === (user as { id?: number } | null)?.id);
+
+  const handleToggleWatch = async () => {
+    if (!user) return;
+    try {
+      if (isWatching) {
+        await api.unwatchTicket(ticketId, 'me');
+      } else {
+        await api.watchTicket(ticketId);
+      }
+      refetchWatchers();
+    } catch { /* ignore */ }
+  };
+
+  const handleTakeTicket = async () => {
+    if (!user?.name) return;
+    await handleAssigneeChange(user.name);
+  };
+
+  const alreadyLinkedIds = new Set([
+    ticketId,
+    ...ticketLinks.map((l) => l.primaryTicketId),
+    ...ticketLinks.map((l) => l.linkedTicketId),
+  ]);
+
+  const linkSearchResults = linkSearchQuery.trim().length > 0
+    ? allTickets.filter((t) => {
+        if (alreadyLinkedIds.has(t.id)) return false;
+        const q = linkSearchQuery.toLowerCase();
+        return (
+          t.id.toLowerCase().includes(q) ||
+          t.title.toLowerCase().includes(q) ||
+          (t.bankName ?? '').toLowerCase().includes(q)
+        );
+      }).slice(0, 10)
+    : [];
+
   const displayStatus = (currentStatus || ticket?.status) as TicketStatus;
   const displayAssignee = currentAssignee || ticket?.assignee || 'Unassigned';
-  const displayRequestType = (ticket?.requestType ?? 'Issue') as 'Issue' | 'Add Form' | 'Add Report';
+  const displayRequestType = (ticket?.requestType ?? 'Issue') as 'Issue' | 'Add Form' | 'Add Report' | 'Update';
   const isLocked = displayStatus === 'Resolved' || displayStatus === 'Closed';
 
   const applyStatusChange = async (status: TicketStatus) => {
@@ -125,6 +245,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['tickets'] }),
         queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] }),
+        queryClient.invalidateQueries({ queryKey: ['ticket-links', ticket.id] }),
         queryClient.invalidateQueries({ queryKey: ['stats'] }),
       ]);
     } catch {
@@ -134,9 +255,15 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
     }
   };
 
+  const isTicketAssigned = displayAssignee !== 'Unassigned' && displayAssignee.trim() !== '';
+
   const handleStatusChange = (status: string) => {
     const next = status as TicketStatus;
-    if (next === 'Resolved' || next === 'Closed') {
+    if (!isTicketAssigned && next !== 'Open') {
+      setAssigneeRequiredFor(next);
+      return;
+    }
+    if (next === 'Resolved') {
       setPendingStatus(next);
     } else {
       applyStatusChange(next);
@@ -145,6 +272,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
 
   const handleAssigneeChange = async (assignee: string) => {
     setCurrentAssignee(assignee);
+    if (assignee && assignee !== 'Unassigned') setAssigneeRequiredFor(null);
     if (!ticket) return;
 
     setIsUpdating(true);
@@ -209,16 +337,30 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
           reader.readAsDataURL(file);
         }))
       );
-      await api.resolveTicket(ticket.id, pendingStatus as 'Resolved' | 'Closed', {
+      await api.resolveTicket(ticket.id, pendingStatus as 'Resolved', {
         summary: resolutionSummary.trim(),
         cause: resolutionCause.trim() || undefined,
         preventionSteps: resolutionPrevention.trim() || undefined,
         attachments: attachmentsPayload.length > 0 ? attachmentsPayload : undefined,
       });
+      // Optionally create a system change entry
+      if (addToSystemChange) {
+        const title = scTitle.trim() || `[${ticket.id}] ${ticket.title}`;
+        await api.createSystemChange({
+          title,
+          description: resolutionSummary.trim(),
+          system: ticket.system,
+          module: ticket.module,
+          bankName: ticket.bankName,
+          status: scStatus,
+        }).catch(() => {/* non-fatal */});
+        queryClient.invalidateQueries({ queryKey: ['system-changes'] });
+      }
       setCurrentStatus(pendingStatus);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['tickets'] }),
         queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] }),
+        queryClient.invalidateQueries({ queryKey: ['ticket-links', ticket.id] }),
         queryClient.invalidateQueries({ queryKey: ['stats'] }),
       ]);
       setPendingStatus(null);
@@ -226,6 +368,9 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
       setResolutionCause('');
       setResolutionPrevention('');
       setResolutionFiles([]);
+      setAddToSystemChange(false);
+      setScTitle('');
+      setScStatus('Completed');
     } catch {
       setResolveError('Failed to save resolution. Please try again.');
     } finally {
@@ -302,6 +447,12 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
             <Badge className={requestTypeStyles[displayRequestType]}>{displayRequestType}</Badge>
             <Badge className={priorityStyles[ticket.priority]}>{ticket.priority}</Badge>
             <Badge className={statusStyles[displayStatus]}>{displayStatus}</Badge>
+            {ticket.source === 'email' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600 border border-blue-200">
+                <Mail className="h-3 w-3" />
+                From Email
+              </span>
+            )}
             {isUpdating && (
               <span className="text-xs text-muted-foreground">Saving…</span>
             )}
@@ -314,22 +465,59 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                 Edited {ticket.editedAt ? `· ${new Date(ticket.editedAt).toLocaleDateString()}` : ''}
               </span>
             )}
+            {(ticket.reopenCount ?? 0) > 0 && (
+              <span className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-warning/10 text-warning border border-warning/25" title={`Reopened ${ticket.reopenCount} time${ticket.reopenCount !== 1 ? 's' : ''}`}>
+                <RotateCcw className="h-2.5 w-2.5" />
+                Reopened ×{ticket.reopenCount}
+              </span>
+            )}
           </div>
         </div>
-        <button
-          onClick={() => setForwardOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
-          title="Forward to a team member"
-        >
-          <CornerUpRight className="h-3.5 w-3.5" />
-          Forward
-        </button>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          {/* Take Ticket — one-click self-assign when unassigned */}
+          {user?.role === 'inorins' && !isLocked && displayAssignee === 'Unassigned' && (
+            <button
+              onClick={handleTakeTicket}
+              disabled={isUpdating}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 border border-primary/30 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+              title="Assign this ticket to yourself"
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Take Ticket
+            </button>
+          )}
+          {/* Watch / Unwatch */}
+          {user?.role === 'inorins' && (
+            <button
+              onClick={handleToggleWatch}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors',
+                isWatching
+                  ? 'bg-info/10 border-info/30 text-info hover:bg-info/20'
+                  : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+              )}
+              title={isWatching ? 'Stop watching this ticket' : 'Watch this ticket for updates'}
+            >
+              {isWatching ? <BellOff className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+              {isWatching ? 'Watching' : 'Watch'}
+              {watchers.length > 0 && <span className="text-[10px] opacity-70">({watchers.length})</span>}
+            </button>
+          )}
+          <button
+            onClick={() => setForwardOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            title="Forward to a team member"
+          >
+            <CornerUpRight className="h-3.5 w-3.5" />
+            Forward
+          </button>
+        </div>
       </div>
 
       {/* Body */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
         {/* Left Panel - Details */}
-        <div className="w-80 border-r border-border bg-surface p-5 shrink-0 space-y-5 overflow-y-auto min-h-0 scrollbar-thin">
+        <div className="md:w-80 w-full border-b md:border-b-0 md:border-r border-border bg-surface p-5 shrink-0 space-y-5 overflow-y-auto md:min-h-0 scrollbar-thin">
 
         
 
@@ -367,14 +555,32 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
 
           <Section title="Reporter">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
                 <User className="h-4 w-4 text-secondary-foreground" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-foreground">{ticket.reporter}</p>
                 <p className="text-xs text-muted-foreground">{ticket.reporterEmail}</p>
               </div>
             </div>
+            {ticket.source === 'email' && (() => {
+              const rawId = ticket.sourceMessageId?.replace(/^<|>$/g, '') ?? '';
+              const gmailUrl = rawId
+                ? `https://mail.google.com/mail/#search/rfc822msgid:${encodeURIComponent(rawId)}`
+                : `https://mail.google.com/mail/`;
+              return (
+                <a
+                  href={gmailUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  <Mail className="h-3 w-3" />
+                  View original email in Gmail
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              );
+            })()}
           </Section>
 
           <Section title="Contact Person">
@@ -458,9 +664,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                         <div key={att.name} className="flex items-center gap-2">
                           <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                           <span className="text-xs text-foreground truncate flex-1">{att.name}</span>
-                          {att.url && (
-                            <a href={att.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline shrink-0">View</a>
-                          )}
+                          <AttachmentView att={att} className="text-xs text-primary hover:underline shrink-0" />
                         </div>
                       ))}
                     </div>
@@ -478,16 +682,29 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                 <span className="text-[10px] font-medium uppercase tracking-wide">Locked</span>
               </div>
             ) : (
-              <Select value={displayStatus} onValueChange={handleStatusChange}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select value={displayStatus} onValueChange={handleStatusChange}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((s) => (
+                      <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {assigneeRequiredFor && (
+                  <div className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning font-medium">
+                    Assign this ticket to a team member before setting it to &ldquo;{assigneeRequiredFor}&rdquo;.
+                    <button
+                      className="ml-2 text-[10px] underline opacity-70 hover:opacity-100"
+                      onClick={() => setAssigneeRequiredFor(null)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </Section>
 
@@ -504,13 +721,33 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TEAM_MEMBERS.map((m) => (
+                  {assigneeOptions.map((m) => (
                     <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
           </Section>
+
+          {/* Watchers */}
+          {user?.role === 'inorins' && watchers.length > 0 && (
+            <Section title={`Watchers (${watchers.length})`}>
+              <div className="flex flex-wrap gap-1.5">
+                {watchers.map((w) => (
+                  <div key={w.id} className="flex items-center gap-1.5 bg-card border border-border rounded-md px-2 py-1">
+                    <span className="text-xs font-medium text-foreground">{w.userName}</span>
+                    {w.userId === (user as { id?: number } | null)?.id && (
+                      <button
+                        onClick={handleToggleWatch}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        title="Stop watching"
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
 
           <Section title="Description">
             <p className="text-sm text-foreground leading-relaxed">{ticket.description}</p>
@@ -527,18 +764,9 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                         <p className="text-sm text-foreground truncate">{attachment.name}</p>
                         <p className="text-xs text-muted-foreground">{(attachment.size / 1024).toFixed(1)} KB</p>
                       </div>
-                      {attachment.url ? (
-                        <a
-                          href={attachment.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-primary hover:underline"
-                        >
-                          View
-                        </a>
-                      ) : null}
+                      <AttachmentView att={attachment} className="text-xs text-primary hover:underline ml-auto" />
                     </div>
-                    {attachment.url && attachment.type.startsWith('image/') ? (
+                    {attachment.url && attachment.type?.startsWith('image/') ? (
                       <img
                         src={attachment.url}
                         alt={attachment.name}
@@ -552,6 +780,119 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
               <p className="text-sm text-muted-foreground">No attachments added.</p>
             )}
           </Section>
+
+          {/* Linked Tickets — always show if any links exist, allow management when not locked */}
+          {(ticketLinks.length > 0 || !isLocked) && (
+            <Section title={`Linked Tickets${ticketLinks.length > 0 ? ` (${ticketLinks.length})` : ''}`}>
+              <div className="space-y-2">
+                {ticketLinks.map((link) => {
+                  const other = link.primaryTicketId === ticketId ? link.linkedTicket : link.primaryTicket;
+                  const otherStatus = other.status as TicketStatus;
+                  const isDup = link.linkType === 'duplicate';
+                  return (
+                    <div key={link.id} className={cn('flex items-start gap-2 p-2 rounded-md border bg-card', isDup ? 'border-primary/20' : 'border-border')}>
+                      <Link2 className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', isDup ? 'text-primary' : 'text-muted-foreground')} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => navigate(`/staff/tickets/${other.id}`)}
+                            className="text-xs font-mono text-secondary hover:underline font-semibold"
+                          >
+                            {other.id}
+                          </button>
+                          <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-semibold', isDup ? 'bg-primary/10 text-primary border-primary/20' : 'bg-info/10 text-info border-info/20')}>
+                            {link.linkType}
+                          </span>
+                          <span className={cn('text-[10px] px-1.5 py-0.5 rounded border', statusStyles[otherStatus])}>
+                            {otherStatus}
+                          </span>
+                        </div>
+                        <p className="text-xs text-foreground truncate mt-0.5">{other.title}</p>
+                        {other.bankName && <p className="text-[10px] text-muted-foreground">{other.bankName}</p>}
+                        {link.note && <p className="text-[10px] text-muted-foreground/70 italic mt-0.5">{link.note}</p>}
+                      </div>
+                      {!isLocked && (
+                        <button
+                          onClick={async () => {
+                            await api.deleteTicketLink(ticketId, link.id);
+                            queryClient.invalidateQueries({ queryKey: ['ticket-links', ticketId] });
+                          }}
+                          className="text-muted-foreground hover:text-destructive shrink-0"
+                          title="Remove link"
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                {!isLocked && (
+                  <button
+                    onClick={() => { setLinkDialogOpen(true); setLinkError(''); setLinkTargetId(''); setLinkNote(''); setLinkType('duplicate'); }}
+                    className="w-full flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground border border-dashed border-border rounded-md px-3 py-2 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Link another ticket
+                  </button>
+                )}
+              </div>
+            </Section>
+          )}
+
+          {/* System Changes — always visible to staff */}
+          {user?.role === 'inorins' && (
+            <Section title={`System Changes${scLinks.length > 0 ? ` (${scLinks.length})` : ''}`}>
+              <div className="space-y-2">
+                {scLinks.map((link) => {
+                  const sc = link.change!;
+                  const statusColor: Record<string, string> = {
+                    'Not Started': 'bg-muted text-muted-foreground border-border',
+                    'In Progress': 'bg-info/10 text-info border-info/20',
+                    'Completed':   'bg-success/10 text-success border-success/20',
+                  };
+                  return (
+                    <div key={link.id} className="flex items-start gap-2 p-2 rounded-md border bg-card border-secondary/20">
+                      <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-secondary" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-semibold', statusColor[sc.status] ?? statusColor['Not Started'])}>
+                            {sc.status}
+                          </span>
+                          {sc.system && (
+                            <span className="text-[10px] text-muted-foreground">{sc.system}{sc.module ? ` › ${sc.module}` : ''}</span>
+                          )}
+                        </div>
+                        <p className="text-xs font-medium text-foreground mt-0.5">{sc.title}</p>
+                        {link.note && <p className="text-[10px] text-muted-foreground/70 italic mt-0.5">{link.note}</p>}
+                        {link.linkedBy && <p className="text-[10px] text-muted-foreground/50">Linked by {link.linkedBy}</p>}
+                      </div>
+                      {!isLocked && (
+                        <button
+                          onClick={async () => {
+                            await api.unlinkChangeFromTicket(ticketId, sc.id);
+                            queryClient.invalidateQueries({ queryKey: ['ticket-sc-links', ticketId] });
+                          }}
+                          className="text-muted-foreground hover:text-destructive shrink-0"
+                          title="Remove link"
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                {!isLocked && (
+                  <button
+                    onClick={() => { setScLinkDialogOpen(true); setScLinkSearch(''); setScLinkNote(''); setScLinkError(''); }}
+                    className="w-full flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground border border-dashed border-border rounded-md px-3 py-2 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Link to a system change
+                  </button>
+                )}
+              </div>
+            </Section>
+          )}
         </div>
 
         {/* Right Panel - Chat */}
@@ -619,7 +960,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                               <Paperclip className="h-3 w-3 shrink-0 opacity-70" />
                               <span className="text-xs truncate flex-1">{att.name}</span>
                               {att.url && (
-                                <a href={att.url} target="_blank" rel="noreferrer" className="text-xs underline shrink-0 opacity-80 hover:opacity-100">View</a>
+                                <AttachmentView att={att} className="text-xs underline shrink-0 opacity-80 hover:opacity-100" />
                               )}
                             </div>
                             {att.url && att.type.startsWith('image/') && (
@@ -640,14 +981,49 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
           </div>
 
           {/* Input */}
-          <div className={cn('border-t border-border p-4 shrink-0 transition-colors', isInternal ? 'bg-[hsl(var(--internal-note))]' : 'bg-card')}>
-            <div className="flex items-center gap-3 mb-3">
+          <div
+            className={cn('border-t border-border p-4 shrink-0 transition-colors', isInternal ? 'bg-[hsl(var(--internal-note))]' : 'bg-card')}
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('ring-2', 'ring-primary/40'); }}
+            onDragLeave={(e) => { e.currentTarget.classList.remove('ring-2', 'ring-primary/40'); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.currentTarget.classList.remove('ring-2', 'ring-primary/40');
+              const files = Array.from(e.dataTransfer.files).filter((f) => f.size <= 10 * 1024 * 1024);
+              if (files.length) setChatFiles((prev) => [...prev, ...files]);
+            }}
+          >
+            <div className="flex items-center justify-between gap-3 mb-3">
               <div className="flex items-center gap-2">
                 <Switch checked={isInternal} onCheckedChange={setIsInternal} />
                 <span className={cn('text-sm font-semibold flex items-center gap-1.5', isInternal ? 'text-warning' : 'text-muted-foreground')}>
                   {isInternal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   Internal Note Only (Hidden from Client)
                 </span>
+              </div>
+              {/* Canned Replies picker */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowCannedReplies((p) => !p)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title="Insert a canned reply"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Canned
+                </button>
+                {showCannedReplies && (
+                  <div className="absolute right-0 bottom-7 w-80 bg-popover border border-border rounded-lg shadow-lg z-10 overflow-hidden">
+                    <p className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">Quick Replies</p>
+                    {CANNED_REPLIES.map((reply, i) => (
+                      <button
+                        key={i}
+                        className="w-full text-left px-3 py-2.5 text-xs text-foreground hover:bg-accent transition-colors border-b border-border last:border-0 leading-relaxed"
+                        onClick={() => { setReplyText(reply); setShowCannedReplies(false); }}
+                      >
+                        {reply}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             {sendError ? (
@@ -735,7 +1111,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                   <SelectValue placeholder="Select team member…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TEAM_MEMBERS.filter((m) => m !== 'Unassigned' && m !== user?.name).map((m) => (
+                  {staffMembers.filter((m) => m !== user?.name).map((m) => (
                     <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
                   ))}
                 </SelectContent>
@@ -774,15 +1150,20 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
           setResolutionPrevention('');
           setResolutionFiles([]);
           setResolveError('');
+          setAddToSystemChange(false);
+          setPropagateToLinked(false);
+          setScTitle('');
+          setScStatus('Completed');
         }
       }}>
-        <AlertDialogContent className="max-w-lg">
-          <AlertDialogHeader>
+        <AlertDialogContent className="max-w-lg flex flex-col max-h-[90vh]">
+          <AlertDialogHeader className="shrink-0">
             <AlertDialogTitle>Mark ticket as {pendingStatus}</AlertDialogTitle>
             <AlertDialogDescription>
               Provide a resolution note — this will be shown to the client as a final notification. The status cannot be changed afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="flex-1 overflow-y-auto scrollbar-thin pr-1">
           <div className="space-y-3 py-1">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground">
@@ -854,11 +1235,70 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                 </div>
               )}
             </div>
+            {/* Unresolved duplicate-linked tickets — auto-resolved with the same message */}
+            {ticketLinks.some((l) => l.linkType === 'duplicate' && (l.primaryTicketId === ticketId ? l.linkedTicket : l.primaryTicket).status !== 'Resolved') && (
+              <div className="rounded-md border border-warning/30 p-3 space-y-1.5 bg-warning/5">
+                <p className="text-xs font-semibold text-foreground">Also resolving duplicate-linked ticket(s):</p>
+                {ticketLinks.filter((l) => l.linkType === 'duplicate' && (l.primaryTicketId === ticketId ? l.linkedTicket : l.primaryTicket).status !== 'Resolved').map((l) => {
+                  const other = l.primaryTicketId === ticketId ? l.linkedTicket : l.primaryTicket;
+                  return (
+                    <div key={l.id} className="flex items-center gap-2 text-xs pl-1">
+                      <span className="font-mono font-semibold text-secondary">{other.id}</span>
+                      <span className="text-muted-foreground truncate">{other.title}</span>
+                      <span className={cn('text-[10px] px-1.5 rounded border shrink-0', statusStyles[other.status as TicketStatus])}>{other.status}</span>
+                    </div>
+                  );
+                })}
+                <p className="text-[10px] text-muted-foreground">These will be resolved with the same message.</p>
+              </div>
+            )}
+
+            {/* Link to System Change */}
+            <div className="rounded-md border border-border p-3 space-y-3 bg-muted/30">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-input accent-primary"
+                  checked={addToSystemChange}
+                  onChange={(e) => setAddToSystemChange(e.target.checked)}
+                />
+                <span className="text-xs font-semibold text-foreground">Also record as a System Change</span>
+              </label>
+              {addToSystemChange && (
+                <div className="space-y-2 pl-6">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Change Title</label>
+                    <Input
+                      className="h-7 text-xs"
+                      placeholder={`[${ticket?.id}] ${ticket?.title ?? ''}`}
+                      value={scTitle}
+                      onChange={(e) => setScTitle(e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground">Leave blank to auto-fill from ticket title.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Initial Status</label>
+                    <Select value={scStatus} onValueChange={(v) => setScStatus(v as typeof scStatus)}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Not Started">Not Started</SelectItem>
+                        <SelectItem value="In Progress">In Progress</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    System, module, and bank will be copied from this ticket automatically.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
+          </div>{/* end scrollable area */}
           {resolveError && (
-            <p className="text-xs text-destructive -mt-1">{resolveError}</p>
+            <p className="text-xs text-destructive shrink-0">{resolveError}</p>
           )}
-          <AlertDialogFooter>
+          <AlertDialogFooter className="shrink-0">
             <AlertDialogCancel disabled={isResolving}>Cancel</AlertDialogCancel>
             <Button
               disabled={!resolutionSummary.trim() || isResolving}
@@ -869,6 +1309,224 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Link Ticket Dialog */}
+      <Dialog open={linkDialogOpen} onOpenChange={(open) => {
+        if (!isLinking) {
+          setLinkDialogOpen(open);
+          if (!open) { setLinkSearchQuery(''); setLinkTargetId(''); setLinkNote(''); setLinkError(''); setLinkType('duplicate'); }
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Link Ticket</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+
+            {/* Ticket picker */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Search & select ticket</label>
+              {linkTargetId ? (
+                (() => {
+                  const sel = allTickets.find((t: Ticket) => t.id === linkTargetId);
+                  return (
+                    <div className="flex items-start gap-2 p-2.5 rounded-md border border-primary/30 bg-primary/5">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-mono font-bold text-secondary">{linkTargetId}</span>
+                          {sel && <span className="text-[10px] text-muted-foreground">{sel.status}</span>}
+                        </div>
+                        <p className="text-xs text-foreground truncate mt-0.5">{sel?.title ?? linkTargetId}</p>
+                        {sel?.bankName && <p className="text-[10px] text-muted-foreground">{sel.bankName}</p>}
+                      </div>
+                      <button
+                        onClick={() => { setLinkTargetId(''); setLinkSearchQuery(''); }}
+                        className="text-xs text-muted-foreground hover:text-destructive shrink-0"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  );
+                })()
+              ) : (
+                <>
+                  <Input
+                    autoFocus
+                    placeholder="Search by ticket ID, title, or bank…"
+                    value={linkSearchQuery}
+                    onChange={(e) => setLinkSearchQuery(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                  {linkSearchQuery.trim().length > 0 && (
+                    <div className="max-h-48 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                      {linkSearchResults.length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-3 text-center">No tickets found.</p>
+                      ) : linkSearchResults.map((t: Ticket) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => { setLinkTargetId(t.id); setLinkSearchQuery(''); }}
+                          className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-muted/50 text-left transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-mono font-semibold text-secondary shrink-0">{t.id}</span>
+                              <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium shrink-0', statusStyles[t.status as TicketStatus])}>
+                                {t.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-foreground truncate mt-0.5">{t.title}</p>
+                            {t.bankName && <p className="text-[10px] text-muted-foreground">{t.bankName}</p>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {linkSearchQuery.trim().length === 0 && (
+                    <p className="text-[11px] text-muted-foreground">Type to search existing tickets.</p>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Link Type</label>
+              <Select value={linkType} onValueChange={(v) => setLinkType(v as 'duplicate' | 'related')}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="duplicate">Duplicate — same exact issue</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Note <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Input
+                placeholder="Why are these tickets linked?"
+                value={linkNote}
+                onChange={(e) => setLinkNote(e.target.value)}
+              />
+            </div>
+            {linkError && <p className="text-xs text-destructive">{linkError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setLinkDialogOpen(false)} disabled={isLinking}>Cancel</Button>
+            <Button size="sm" disabled={!linkTargetId || isLinking} onClick={async () => {
+              if (!linkTargetId) return;
+              setIsLinking(true);
+              setLinkError('');
+              try {
+                await api.createTicketLink(ticketId, { linkedTicketId: linkTargetId, linkType, note: linkNote.trim() || undefined });
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ['ticket-links', ticketId] }),
+                  queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] }),
+                  queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+                  queryClient.invalidateQueries({ queryKey: ['stats'] }),
+                ]);
+                setLinkDialogOpen(false);
+              } catch (e: unknown) {
+                setLinkError(e instanceof Error ? e.message : 'Failed to link ticket.');
+              } finally {
+                setIsLinking(false);
+              }
+            }}>
+              {isLinking ? 'Linking…' : 'Link Ticket'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link to System Change Dialog */}
+      <Dialog open={scLinkDialogOpen} onOpenChange={(open) => {
+        if (!isScLinking) {
+          setScLinkDialogOpen(open);
+          if (!open) { setScLinkSearch(''); setScLinkNote(''); setScLinkError(''); }
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Link to System Change</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Search system changes</label>
+              <Input
+                autoFocus
+                placeholder="Search by title, system, or module…"
+                value={scLinkSearch}
+                onChange={(e) => setScLinkSearch(e.target.value)}
+                className="h-8 text-xs"
+              />
+              {(() => {
+                const q = scLinkSearch.trim().toLowerCase();
+                const alreadyLinked = new Set(scLinks.map((l) => l.changeId));
+                const results = q
+                  ? allSystemChanges.filter((c) =>
+                      !alreadyLinked.has(c.id) && (
+                        c.title.toLowerCase().includes(q) ||
+                        (c.system ?? '').toLowerCase().includes(q) ||
+                        (c.module ?? '').toLowerCase().includes(q)
+                      )
+                    ).slice(0, 8)
+                  : allSystemChanges.filter((c) => !alreadyLinked.has(c.id)).slice(0, 8);
+                const statusColor: Record<string, string> = {
+                  'Not Started': 'text-muted-foreground',
+                  'In Progress': 'text-info',
+                  'Completed':   'text-success',
+                };
+                return results.length > 0 ? (
+                  <div className="max-h-52 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                    {results.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={async () => {
+                          setIsScLinking(true); setScLinkError('');
+                          try {
+                            await api.linkChangeToTicket(ticketId, c.id, scLinkNote.trim() || undefined);
+                            queryClient.invalidateQueries({ queryKey: ['ticket-sc-links', ticketId] });
+                            queryClient.invalidateQueries({ queryKey: ['system-changes'] });
+                            setScLinkDialogOpen(false);
+                          } catch (e: unknown) {
+                            setScLinkError(e instanceof Error ? e.message : 'Failed to link.');
+                          } finally { setIsScLinking(false); }
+                        }}
+                        className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-muted/50 text-left transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={cn('text-[10px] font-semibold', statusColor[c.status] ?? 'text-muted-foreground')}>
+                              {c.status}
+                            </span>
+                            {c.system && (
+                              <span className="text-[10px] text-muted-foreground">{c.system}{c.module ? ` › ${c.module}` : ''}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-foreground truncate font-medium">{c.title}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : q ? (
+                  <p className="text-xs text-muted-foreground text-center py-2">No matching system changes.</p>
+                ) : null;
+              })()}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Note <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Input
+                placeholder="Why is this ticket related to the system change?"
+                value={scLinkNote}
+                onChange={(e) => setScLinkNote(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            {scLinkError && <p className="text-xs text-destructive">{scLinkError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setScLinkDialogOpen(false)} disabled={isScLinking}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
