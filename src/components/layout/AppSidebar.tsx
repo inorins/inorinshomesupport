@@ -1,12 +1,14 @@
 import {
   LayoutDashboard, Ticket, Users, Settings, Shield, LogOut,
   Archive, UserCog, Inbox, GitMerge, ShieldCheck, ClipboardList, ChevronDown, KeyRound,
+  MessageSquare,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { usePendingInboxCount } from '@/hooks/useInboxEmails';
+import { useChatUnreadCount } from '@/hooks/useTicketsData';
 
 interface AppSidebarProps {
   activeView: string;
@@ -86,13 +88,15 @@ function CollapsibleSection({ title, items, isActive, onNavigate }: {
 export function AppSidebar({ activeView, onNavigate, isAdmin }: AppSidebarProps) {
   const { user, logout } = useAuth();
   const pendingEmails = usePendingInboxCount();
+  const chatUnread = useChatUnreadCount();
   const isInorins = user?.role === 'inorins';
 
   const mainItems: NavItem[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Dashboard',   icon: LayoutDashboard },
     { id: 'tickets',   label: 'All Tickets', icon: Ticket },
     { id: 'board',     label: 'Team Board',  icon: Users },
-    { id: 'inbox',     label: 'Inbox',       icon: Inbox, badge: pendingEmails },
+    { id: 'chat',      label: 'Chat',        icon: MessageSquare, badge: chatUnread || undefined },
+    { id: 'inbox',     label: 'Email Inbox', icon: Inbox, badge: pendingEmails || undefined },
   ];
 
   const opsItems: NavItem[] = [

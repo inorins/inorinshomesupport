@@ -69,6 +69,11 @@ async function saveAttachments(attachments, ticketId, prefix = '') {
 }
 
 export const TicketController = {
+  // Returns every ticket with no permission filtering — for the Team Board (inorins only).
+  async listAll(_req, res) {
+    return res.json(await TicketModel.findAll());
+  },
+
   async list(req, res) {
     const sessionUser = getSessionUser(req);
     let tickets = await TicketModel.findAll();

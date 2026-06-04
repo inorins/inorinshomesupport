@@ -102,6 +102,50 @@ app.get('/api/archive', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Message counts per ticket — used by the chat hub to show unread badges
+app.get('/api/messages/counts', async (req, res, next) => {
+  try {
+    const { pool } = await import('./src/config/database.js');
+    const { getSessionUser } = await import('./src/utils/token.js');
+    const sessionUser = getSessionUser(req);
+    const isClient = sessionUser?.role === 'client';
+
+    let rows;
+    if (isClient) {
+      const bankDomain = (sessionUser.bankDomain ?? '').toLowerCase();
+      const bankName = (sessionUser.bankName ?? '').toLowerCase();
+      [rows] = await pool.query(
+        `SELECT m.ticket_id, COUNT(*) AS total_count, MAX(m.created_at) AS last_message_at
+         FROM messages m
+         JOIN tickets t ON t.id = m.ticket_id
+         WHERE m.is_internal = FALSE
+           AND (
+             (? != '' AND LOWER(t.reporter_email) LIKE CONCAT('%@', ?))
+             OR (? != '' AND LOWER(IFNULL(t.bank_name,'')) = ?)
+           )
+         GROUP BY m.ticket_id`,
+        [bankDomain, bankDomain, bankName, bankName]
+      );
+    } else {
+      [rows] = await pool.query(
+        `SELECT ticket_id, COUNT(*) AS total_count, MAX(created_at) AS last_message_at
+         FROM messages
+         GROUP BY ticket_id`
+      );
+    }
+
+    return res.json(
+      rows.map((r) => ({
+        ticketId: r.ticket_id,
+        totalCount: Number(r.total_count),
+        lastMessageAt: r.last_message_at instanceof Date
+          ? r.last_message_at.toISOString()
+          : String(r.last_message_at),
+      }))
+    );
+  } catch (err) { next(err); }
+});
+
 // 404 + error handler
 app.use((req, res) => res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` }));
 app.use((err, _req, res, _next) => {

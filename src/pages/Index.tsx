@@ -11,6 +11,7 @@ import { SettingsView } from '@/components/views/SettingsView';
 import { ArchiveView } from '@/components/views/ArchiveView';
 import { AdminUsersView } from '@/components/views/AdminUsersView';
 import { InboxView } from '@/components/views/InboxView';
+import { GmailInboxView } from '@/components/views/GmailInboxView';
 import { SystemChangesView } from '@/components/views/SystemChangesView';
 import { PermissionsView } from '@/components/views/PermissionsView';
 import { AuditLogView } from '@/components/views/AuditLogView';
@@ -49,6 +50,7 @@ const Index = () => {
     if (pathname.startsWith('/staff/settings')) return 'settings';
     if (pathname.startsWith('/staff/archive')) return 'archive';
     if (pathname.startsWith('/staff/admin-users')) return 'admin-users';
+    if (pathname.startsWith('/staff/chat')) return 'chat';
     if (pathname.startsWith('/staff/inbox')) return 'inbox';
     if (pathname.startsWith('/staff/system-changes')) return 'system-changes';
     if (pathname.startsWith('/staff/permissions')) return 'permissions';
@@ -81,6 +83,9 @@ const Index = () => {
         return;
       case 'admin-users':
         navigate('/staff/admin-users');
+        return;
+      case 'chat':
+        navigate('/staff/chat');
         return;
       case 'inbox':
         navigate('/staff/inbox');
@@ -160,7 +165,8 @@ const Index = () => {
             {isAdmin && (
               <Route path="sessions" element={<SessionManagementView />} />
             )}
-            <Route path="inbox" element={<InboxView />} />
+            <Route path="chat" element={<InboxView />} />
+            <Route path="inbox" element={<GmailInboxView />} />
             <Route path="tickets/:ticketId" element={<StaffTicketDetailRoute />} />
             <Route path="*" element={<Navigate to="/staff/dashboard" replace />} />
           </Routes>

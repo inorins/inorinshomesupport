@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { ClientSidebar } from '@/components/client/ClientSidebar';
@@ -6,6 +6,7 @@ import { ClientTicketListView } from '@/components/views/ClientTicketListView';
 import { ClientTicketDetailView } from '@/components/views/ClientTicketDetailView';
 import { ClientNewTicketView } from '@/components/views/ClientNewTicketView';
 import { SettingsView } from '@/components/views/SettingsView';
+import { InboxView } from '@/components/views/InboxView';
 import { useTickets } from '@/hooks/useTicketsData';
 import { useAuth } from '@/context/AuthContext';
 import { HelpCircle } from 'lucide-react';
@@ -32,9 +33,12 @@ export function ClientPortal() {
   const { user } = useAuth();
   const { tickets } = useTickets();
 
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
   const activeView = useMemo(() => {
     const { pathname } = location;
     if (pathname.startsWith('/client/tickets/new')) return 'new-ticket';
+    if (pathname.startsWith('/client/chat')) return 'chat';
     if (pathname.startsWith('/client/faq')) return 'faq';
     if (pathname.startsWith('/client/settings')) return 'settings';
     return 'my-tickets';
@@ -71,6 +75,9 @@ export function ClientPortal() {
       case 'new-ticket':
         navigate('/client/tickets/new');
         return;
+      case 'chat':
+        navigate('/client/chat');
+        return;
       case 'faq':
         navigate('/client/faq');
         return;
@@ -88,6 +95,7 @@ export function ClientPortal() {
         activeView={activeView}
         onNavigate={handleNavigate}
         openTicketCount={openCount}
+        unreadChatCount={unreadChatCount}
       />
       <div className="flex-1 flex flex-col h-screen">
         <ClientHeader onNewTicket={() => navigate('/client/tickets/new')} />
@@ -96,6 +104,7 @@ export function ClientPortal() {
             <Route path="tickets" element={<ClientTicketListView onViewTicket={handleViewTicket} onNewRequest={() => navigate('/client/tickets/new')} />} />
             <Route path="tickets/new" element={<ClientNewTicketView onSuccess={() => navigate('/client/tickets')} />} />
             <Route path="tickets/:ticketId" element={<ClientTicketDetailRoute />} />
+            <Route path="chat" element={<InboxView onUnreadChange={setUnreadChatCount} />} />
             <Route path="faq" element={<FaqView />} />
             <Route path="settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/client/tickets" replace />} />

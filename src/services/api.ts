@@ -81,6 +81,7 @@ export const api = {
 
   // Tickets
   getTickets: () => request<Ticket[]>('/tickets'),
+  getAllTickets: () => request<Ticket[]>('/tickets/board-all'),
   getTicket: (id: string) => request<Ticket>(`/tickets/${id}`),
   createTicket: (data: Partial<Ticket>) =>
     request<Ticket>('/tickets', { method: 'POST', body: JSON.stringify(data) }),
@@ -240,6 +241,10 @@ export const api = {
   // Ticket reopen
   reopenTicket: (id: string, reopenNote: string) =>
     request<Ticket>(`/tickets/${id}/reopen`, { method: 'PATCH', body: JSON.stringify({ reopenNote }) }),
+
+  // Chat unread counts
+  getMessageCounts: () =>
+    request<Array<{ ticketId: string; totalCount: number; lastMessageAt: string }>>('/messages/counts'),
 
   // Gmail Inbox
   getInbox: (status?: string) =>

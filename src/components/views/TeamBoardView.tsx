@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { User, Hand, Play, HelpCircle, RefreshCw } from 'lucide-react';
-import { useTickets } from '@/hooks/useTicketsData';
+import { useAllTickets } from '@/hooks/useTicketsData';
 import { useAuth } from '@/context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
@@ -24,7 +24,7 @@ const priorityDot: Record<Priority, string> = {
 };
 
 export function TeamBoardView({ onViewTicket }: { onViewTicket: (id: string) => void }) {
-  const { tickets, isLoading, refetch } = useTickets();
+  const { tickets, isLoading, refetch } = useAllTickets();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [claimingId, setClaimingId] = useState<string | null>(null);
@@ -45,9 +45,6 @@ export function TeamBoardView({ onViewTicket }: { onViewTicket: (id: string) => 
     if (!assignee?.trim()) return false;
     return assignee.toLowerCase() === (user?.name ?? '').toLowerCase();
   };
-
-  const canViewDetail = (assignee: string | undefined) =>
-    !assignee?.trim() || isMyTicket(assignee);
 
   return (
     <div className="p-6 space-y-6 h-full">
@@ -91,17 +88,11 @@ export function TeamBoardView({ onViewTicket }: { onViewTicket: (id: string) => 
                   <p className="text-xs text-muted-foreground text-center py-8">No tickets</p>
                 ) : (
                   colTickets.map((t) => {
-                    const canOpen = canViewDetail(t.assignee);
                     return (
                       <div
                         key={t.id}
-                        onClick={() => canOpen && onViewTicket(t.id)}
-                        className={cn(
-                          'bg-card rounded-lg border border-border p-3.5 space-y-2.5 transition-shadow',
-                          canOpen
-                            ? 'cursor-pointer hover:shadow-md'
-                            : 'cursor-default opacity-70'
-                        )}
+                        onClick={() => onViewTicket(t.id)}
+                        className="bg-card rounded-lg border border-border p-3.5 space-y-2.5 transition-shadow cursor-pointer hover:shadow-md"
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-mono text-xs font-semibold text-secondary">{t.id}</span>

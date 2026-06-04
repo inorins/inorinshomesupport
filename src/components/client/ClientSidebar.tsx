@@ -1,4 +1,4 @@
-import { LayoutList, PlusCircle, HelpCircle, Settings } from 'lucide-react';
+import { LayoutList, PlusCircle, HelpCircle, Settings, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { NotificationBell } from '@/components/ui/NotificationBell';
@@ -7,16 +7,18 @@ interface ClientSidebarProps {
   activeView: string;
   onNavigate: (view: string) => void;
   openTicketCount: number;
+  unreadChatCount?: number;
 }
 
 const navItems = [
   { id: 'my-tickets', label: 'My Tickets', icon: LayoutList },
+  { id: 'chat', label: 'Chat', icon: MessageSquare },
   { id: 'new-ticket', label: 'Submit a Ticket', icon: PlusCircle },
   { id: 'faq', label: 'FAQ & Guides', icon: HelpCircle },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-export function ClientSidebar({ activeView, onNavigate, openTicketCount }: ClientSidebarProps) {
+export function ClientSidebar({ activeView, onNavigate, openTicketCount, unreadChatCount = 0 }: ClientSidebarProps) {
   const { user } = useAuth();
 
   return (
@@ -58,6 +60,14 @@ export function ClientSidebar({ activeView, onNavigate, openTicketCount }: Clien
                   isActive ? 'bg-sidebar-primary-foreground/20 text-sidebar-primary-foreground' : 'bg-primary/15 text-primary'
                 )}>
                   {openTicketCount}
+                </span>
+              )}
+              {item.id === 'chat' && unreadChatCount > 0 && (
+                <span className={cn(
+                  'text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center',
+                  isActive ? 'bg-sidebar-primary-foreground/20 text-sidebar-primary-foreground' : 'bg-destructive/90 text-white'
+                )}>
+                  {unreadChatCount}
                 </span>
               )}
             </button>

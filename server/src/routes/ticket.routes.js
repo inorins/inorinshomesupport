@@ -13,6 +13,7 @@ router.post('/bulk', TicketController.bulkUpdate);
 router.get('/stats', TicketController.getStats);
 router.get('/stats/breakdown', TicketController.getStatsBreakdown);
 router.get('/archive', TicketController.getArchive);
+router.get('/board-all', requireRole('inorins'), TicketController.listAll);
 router.get('/:id', TicketController.getById);
 router.patch('/:id/status', TicketController.updateStatus);
 router.patch('/:id/resolve', TicketController.resolve);

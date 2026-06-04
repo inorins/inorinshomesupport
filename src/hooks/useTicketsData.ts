@@ -21,6 +21,20 @@ export function useTickets(options?: { refetchInterval?: number }) {
   };
 }
 
+export function useAllTickets() {
+  const query = useQuery({
+    queryKey: ['all-tickets'],
+    queryFn: api.getAllTickets,
+    retry: 1,
+    refetchInterval: 30_000,
+  });
+  return {
+    tickets: query.data ?? [],
+    isLoading: query.isLoading,
+    refetch: () => query.refetch(),
+  };
+}
+
 export function useTicket(id: string) {
   const query = useQuery({
     queryKey: ['ticket', id],
@@ -49,6 +63,38 @@ export function useTicketMessages(ticketId: string) {
     messages: query.data ?? [],
     isLoading: query.isLoading,
     isError: query.isError,
+  };
+}
+
+import { loadSeen } from '@/components/views/InboxView';
+
+export function useChatUnreadCount(): number {
+  const { counts } = useMessageCounts();
+  const { tickets } = useTickets();
+  const seen = loadSeen();
+
+  // Mirror InboxView's scoping: for inorins users only own + unassigned tickets count
+  // We don't have user context here, so we count all tickets that are in seen map.
+  // The sidebar re-renders every 3 s when counts update, so localStorage is always fresh.
+  const scopedIds = new Set(tickets.map((t) => t.id));
+
+  return counts.reduce((sum, c) => {
+    if (!scopedIds.has(c.ticketId)) return sum;
+    if (!(c.ticketId in seen)) return sum;
+    return sum + Math.max(0, c.totalCount - (seen[c.ticketId] ?? 0));
+  }, 0);
+}
+
+export function useMessageCounts() {
+  const query = useQuery({
+    queryKey: ['message-counts'],
+    queryFn: api.getMessageCounts,
+    refetchInterval: 3000,
+    retry: 1,
+  });
+  return {
+    counts: query.data ?? [],
+    isLoading: query.isLoading,
   };
 }
 

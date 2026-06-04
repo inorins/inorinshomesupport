@@ -104,6 +104,9 @@ interface DashboardViewProps {
 
 const ADMIN_EMAIL = 'inorins@inorins.com';
 const AUTO_REFRESH_MS = 2 * 60 * 1000;
+const STATUS_SORT: Record<string, number> = {
+  'Open': 0, 'Pending Client': 1, 'In Progress': 2, 'Resolved': 3, 'Closed': 4,
+};
 
 export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewProps) {
   const { user } = useAuth();
@@ -186,7 +189,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
   };
 
   const [filterPriority, setFilterPriority] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('active');
   const [filterSystem, setFilterSystem] = useState<string>('all');
   const [filterBank, setFilterBank] = useState<string>('all');
   const [myQueueOnly, setMyQueueOnly] = useState(false);
@@ -200,10 +203,12 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
   const banks = useMemo(() => [...new Set(tickets.map(resolveTicketBankName))].sort(), [tickets]);
 
   const filtered = useMemo(() => {
-    return tickets.filter((t) => {
+    const ACTIVE_STATUSES = new Set(['Open', 'In Progress', 'Pending Client']);
+    const base = tickets.filter((t) => {
       if (myQueueOnly && t.assignee !== user?.name) return false;
       if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
-      if (filterStatus !== 'all' && t.status !== filterStatus) return false;
+      if (filterStatus === 'active' && !ACTIVE_STATUSES.has(t.status)) return false;
+      if (filterStatus !== 'all' && filterStatus !== 'active' && t.status !== filterStatus) return false;
       if (filterSystem !== 'all' && t.system !== filterSystem) return false;
       if (filterBank !== 'all' && resolveTicketBankName(t) !== filterBank) return false;
       if (searchQuery) {
@@ -217,7 +222,15 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
       }
       return true;
     });
-  }, [tickets, filterPriority, filterStatus, filterSystem, filterBank, searchQuery]);
+    // Sort: Open → Pending Client → In Progress → Resolved → Closed, then by recency
+    base.sort((a, b) => {
+      const sa = STATUS_SORT[a.status] ?? 5;
+      const sb = STATUS_SORT[b.status] ?? 5;
+      if (sa !== sb) return sa - sb;
+      return new Date(b.lastUpdated ?? b.createdAt).getTime() - new Date(a.lastUpdated ?? a.createdAt).getTime();
+    });
+    return base;
+  }, [tickets, filterPriority, filterStatus, filterSystem, filterBank, searchQuery, myQueueOnly, user]);
 
   const kpiCards = useMemo(() => [
     {
@@ -240,11 +253,11 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
     },
   ], [tickets]);
 
-  const hasFilters = filterPriority !== 'all' || filterStatus !== 'all' || filterSystem !== 'all' || filterBank !== 'all' || myQueueOnly;
+  const hasFilters = filterPriority !== 'all' || filterStatus !== 'active' || filterSystem !== 'all' || filterBank !== 'all' || myQueueOnly;
 
   const clearFilters = () => {
     setFilterPriority('all');
-    setFilterStatus('all');
+    setFilterStatus('active');
     setFilterSystem('all');
     setFilterBank('all');
     setMyQueueOnly(false);
@@ -402,6 +415,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="active">Active (Open / Pending)</SelectItem>
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="Open">Open</SelectItem>
             <SelectItem value="In Progress">In Progress</SelectItem>
