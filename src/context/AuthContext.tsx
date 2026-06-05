@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { api, setAuthToken } from '@/services/api';
+import { api, setAuthToken, SESSION_EXPIRED_EVENT } from '@/services/api';
 import type { AuthUser } from '@/services/api';
+import { toast } from 'sonner';
 
 interface LoginResult {
   success: boolean;
@@ -10,14 +11,14 @@ interface LoginResult {
 interface AuthContextType {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<LoginResult>;
-  logout: () => void;
+  logout: (reason?: string) => void;
   isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   login: async () => ({ success: false }),
-  logout: () => {},
+  logout: (_reason?: string) => {},
   isLoading: true,
 });
 
@@ -63,11 +64,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = (reason?: string) => {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
     setAuthToken(null);
+    if (reason) toast.warning(reason);
   };
+
+  // Auto-logout when the server rejects the token (expired or revoked)
+  useEffect(() => {
+    function handleExpired() {
+      logout('Your session has expired. Please log in again.');
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading }}>

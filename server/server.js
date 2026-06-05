@@ -164,9 +164,16 @@ cron.schedule(`*/${env.GMAIL_POLL_INTERVAL} * * * *`, () => {
   syncAllAccounts().catch((err) => console.error('[gmail]', err.message));
 });
 
-// Daily backup at configured hour (check every hour)
+// Purge sessions older than 8 hours + daily backup (both run on the same hourly tick)
 let lastBackupDate = null;
 cron.schedule('0 * * * *', () => {
+  // Session cleanup
+  import('./src/config/database.js').then(({ pool }) => {
+    pool.query("DELETE FROM user_sessions WHERE created_at < DATE_SUB(NOW(), INTERVAL 8 HOUR)")
+      .catch((err) => console.error('[sessions] cleanup failed:', err.message));
+  });
+
+  // Backup
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   if (now.getHours() >= env.BACKUP_HOUR && lastBackupDate !== today) {

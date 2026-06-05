@@ -1,12 +1,15 @@
 import crypto from 'crypto';
 import { env } from '../config/env.js';
 
+const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours
+
 export function createSessionToken(user) {
   const payload = Buffer.from(JSON.stringify({
     id: user.id,
     role: user.role,
     bankDomain: user.bank_domain ?? user.bankDomain ?? null,
     bankName: user.bank_name ?? user.bankName ?? null,
+    exp: Date.now() + SESSION_DURATION_MS,
   })).toString('base64url');
   const sig = crypto.createHmac('sha256', env.SESSION_SECRET).update(payload).digest('base64url');
   return `${payload}.${sig}`;
@@ -25,7 +28,9 @@ export function parseSessionToken(token) {
     if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return null;
   } catch { return null; }
   try {
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    if (parsed?.exp && Date.now() > parsed.exp) return null; // expired
+    return parsed;
   } catch { return null; }
 }
 

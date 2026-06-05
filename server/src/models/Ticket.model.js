@@ -118,32 +118,44 @@ export const TicketModel = {
   },
 
   async updateStatus(id, status) {
+    const now = new Date();
+    // Pass started_at explicitly so the BEFORE UPDATE trigger's IS NULL guard
+    // skips overwriting it with MySQL's UTC NOW().
+    const setStarted = status === 'In Progress'
+      ? ', started_at = COALESCE(started_at, ?)'
+      : '';
+    const params = status === 'In Progress'
+      ? [status, now, now, id]
+      : [status, now, id];
     await pool.query(
-      'UPDATE tickets SET status = ?, updated_at = NOW() WHERE id = ?',
-      [status, id]
+      `UPDATE tickets SET status = ?, updated_at = ?${setStarted} WHERE id = ?`,
+      params
     );
     return TicketModel.findById(id);
   },
 
   async updateAssignee(id, assigneeId) {
     await pool.query(
-      'UPDATE tickets SET assignee_id = ?, updated_at = NOW() WHERE id = ?',
-      [assigneeId ?? null, id]
+      'UPDATE tickets SET assignee_id = ?, updated_at = ? WHERE id = ?',
+      [assigneeId ?? null, new Date(), id]
     );
     return TicketModel.findById(id);
   },
 
   async resolve(id, status, resolutionNote, attachments) {
+    const now = new Date();
     await pool.query(
       `UPDATE tickets SET status = ?, resolution_summary = ?, resolution_cause = ?,
-       resolution_prevention = ?, resolution_attachments = ?, updated_at = NOW()
-       WHERE id = ?`,
+       resolution_prevention = ?, resolution_attachments = ?, resolved_at = COALESCE(resolved_at, ?),
+       updated_at = ? WHERE id = ?`,
       [
         status,
         resolutionNote.summary,
         resolutionNote.cause ?? null,
         resolutionNote.preventionSteps ?? null,
         JSON.stringify(attachments ?? []),
+        now,
+        now,
         id,
       ]
     );
@@ -153,16 +165,16 @@ export const TicketModel = {
   async forward(id, forwardedToId, forwardedById, forwardNote) {
     await pool.query(
       `UPDATE tickets SET assignee_id = ?, forwarded_to = ?, forwarded_by = ?,
-       forward_note = ?, updated_at = NOW() WHERE id = ?`,
-      [forwardedToId, forwardedToId, forwardedById, forwardNote ?? null, id]
+       forward_note = ?, updated_at = ? WHERE id = ?`,
+      [forwardedToId, forwardedToId, forwardedById, forwardNote ?? null, new Date(), id]
     );
     return TicketModel.findById(id);
   },
 
   async clearForward(id) {
     await pool.query(
-      'UPDATE tickets SET forwarded_to = NULL, forwarded_by = NULL, forward_note = NULL, updated_at = NOW() WHERE id = ?',
-      [id]
+      'UPDATE tickets SET forwarded_to = NULL, forwarded_by = NULL, forward_note = NULL, updated_at = ? WHERE id = ?',
+      [new Date(), id]
     );
     return TicketModel.findById(id);
   },
@@ -176,22 +188,22 @@ export const TicketModel = {
       const jsKey = toCamel(key);
       const val = updates[jsKey] ?? updates[key];
       if (val !== undefined) {
-        // Backtick-quote reserved words
         const col = key === 'system' ? '`system`' : key;
         sets.push(`${col} = ?`);
         vals.push(val);
       }
     }
-    sets.push('is_edited = TRUE', 'edited_at = NOW()', 'updated_at = NOW()');
-    vals.push(id);
+    const now = new Date();
+    sets.push('is_edited = TRUE', 'edited_at = ?', 'updated_at = ?');
+    vals.push(now, now, id);
     await pool.query(`UPDATE tickets SET ${sets.join(', ')} WHERE id = ?`, vals);
     return TicketModel.findById(id);
   },
 
   async markSlaBreach(id) {
     await pool.query(
-      'UPDATE tickets SET sla_breach = TRUE, sla_breach_notified_at = NOW() WHERE id = ?',
-      [id]
+      'UPDATE tickets SET sla_breach = TRUE, sla_breach_notified_at = ? WHERE id = ?',
+      [new Date(), id]
     );
   },
 };

@@ -493,8 +493,8 @@ export const TicketController = {
       }
       const placeholders = safeIds.map(() => '?').join(',');
       await pool.query(
-        `UPDATE tickets SET status = ?, updated_at = NOW() WHERE id IN (${placeholders})`,
-        [value, ...safeIds]
+        `UPDATE tickets SET status = ?, updated_at = ? WHERE id IN (${placeholders})`,
+        [value, new Date(), ...safeIds]
       );
       return res.json({ updated: safeIds.length });
     }
@@ -508,8 +508,8 @@ export const TicketController = {
       const assigneeId = found?.id ?? null;
       const placeholders = safeIds.map(() => '?').join(',');
       await pool.query(
-        `UPDATE tickets SET assignee_id = ?, updated_at = NOW() WHERE id IN (${placeholders})`,
-        [assigneeId, ...safeIds]
+        `UPDATE tickets SET assignee_id = ?, updated_at = ? WHERE id IN (${placeholders})`,
+        [assigneeId, new Date(), ...safeIds]
       );
       return res.json({ updated: safeIds.length });
     }
@@ -538,8 +538,8 @@ export const TicketController = {
     await pool.query(
       `UPDATE tickets SET status='Open', resolved_at=NULL, resolution_summary=NULL,
        resolution_cause=NULL, resolution_prevention=NULL, resolution_attachments=NULL,
-       reopen_count = reopen_count + 1, updated_at=NOW() WHERE id=?`,
-      [ticket.id]
+       reopen_count = reopen_count + 1, updated_at=? WHERE id=?`,
+      [new Date(), ticket.id]
     );
 
     await MessageModel.create(ticket.id, {

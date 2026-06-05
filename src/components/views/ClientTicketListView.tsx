@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Clock, TicketCheck, ArrowRight, FileText } from 'lucide-react';
@@ -6,6 +6,8 @@ import { useTickets } from '@/hooks/useTicketsData';
 import { useAuth } from '@/context/AuthContext';
 import type { Priority, TicketStatus, Ticket } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+
+type StatusFilter = 'All' | TicketStatus;
 
 interface ClientTicketListViewProps {
   onViewTicket: (id: string) => void;
@@ -60,9 +62,19 @@ function TicketRow({ ticket, onClick }: { ticket: Ticket; onClick: () => void })
   );
 }
 
+const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
+  { label: 'All', value: 'All' },
+  { label: 'Open', value: 'Open' },
+  { label: 'In Progress', value: 'In Progress' },
+  { label: 'Pending Client', value: 'Pending Client' },
+  { label: 'Resolved', value: 'Resolved' },
+  { label: 'Closed', value: 'Closed' },
+];
+
 export function ClientTicketListView({ onViewTicket, onNewRequest }: ClientTicketListViewProps) {
   const { user } = useAuth();
   const { tickets, isLoading } = useTickets();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
 
   const myTickets = useMemo(() => {
     if (!user?.bankDomain && !user?.bankName) return [];
@@ -77,9 +89,13 @@ export function ClientTicketListView({ onViewTicket, onNewRequest }: ClientTicke
     });
   }, [tickets, user]);
 
+  const visibleTickets = useMemo(
+    () => statusFilter === 'All' ? myTickets : myTickets.filter((t) => t.status === statusFilter),
+    [myTickets, statusFilter],
+  );
+
   const openCount = myTickets.filter((t) => t.status === 'Open').length;
   const inProgressCount = myTickets.filter((t) => t.status === 'In Progress').length;
-  const resolvedCount = myTickets.filter((t) => t.status === 'Resolved').length;
 
   const monthStart = new Date();
   monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
@@ -88,11 +104,11 @@ export function ClientTicketListView({ onViewTicket, onNewRequest }: ClientTicke
   ).length;
   const pendingClientCount = myTickets.filter((t) => t.status === 'Pending Client').length;
 
-  const kpiCards = [
-    { label: 'Open', value: openCount, icon: AlertTriangle, color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'In Progress', value: inProgressCount, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
-    { label: 'Awaiting Your Reply', value: pendingClientCount, icon: FileText, color: 'text-warning', bg: 'bg-warning/10' },
-    { label: 'Resolved This Month', value: resolvedThisMonth, icon: TicketCheck, color: 'text-success', bg: 'bg-success/10' },
+  const kpiCards: { label: string; value: number; icon: React.ElementType; color: string; bg: string; filter: StatusFilter }[] = [
+    { label: 'Open', value: openCount, icon: AlertTriangle, color: 'text-primary', bg: 'bg-primary/10', filter: 'Open' },
+    { label: 'In Progress', value: inProgressCount, icon: Clock, color: 'text-info', bg: 'bg-info/10', filter: 'In Progress' },
+    { label: 'Awaiting Your Reply', value: pendingClientCount, icon: FileText, color: 'text-warning', bg: 'bg-warning/10', filter: 'Pending Client' },
+    { label: 'Resolved This Month', value: resolvedThisMonth, icon: TicketCheck, color: 'text-success', bg: 'bg-success/10', filter: 'Resolved' },
   ];
 
   return (
@@ -100,10 +116,19 @@ export function ClientTicketListView({ onViewTicket, onNewRequest }: ClientTicke
       
 
 
-      {/* KPI strip */}
+      {/* KPI strip — click to filter */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpiCards.map((k) => (
-          <div key={k.label} className="bg-card rounded-lg border border-border p-4 flex items-center gap-4">
+          <button
+            key={k.label}
+            onClick={() => setStatusFilter((prev) => prev === k.filter ? 'All' : k.filter)}
+            className={cn(
+              'bg-card rounded-lg border p-4 flex items-center gap-4 text-left transition-colors',
+              statusFilter === k.filter
+                ? 'border-primary ring-1 ring-primary/30'
+                : 'border-border hover:bg-surface/60',
+            )}
+          >
             <div className={cn('p-2.5 rounded-lg', k.bg)}>
               <k.icon className={cn('h-5 w-5', k.color)} />
             </div>
@@ -111,14 +136,34 @@ export function ClientTicketListView({ onViewTicket, onNewRequest }: ClientTicke
               <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : k.value}</p>
               <p className="text-xs text-muted-foreground">{k.label}</p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
       {/* Table */}
       <div className="bg-card rounded-lg border border-border">
-        <div className="px-5 py-4 border-b border-border">
-          <h2 className="font-semibold text-foreground">All Tickets</h2>
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="font-semibold text-foreground">
+            {statusFilter === 'All' ? 'All Tickets' : `${statusFilter} Tickets`}
+            <span className="ml-2 text-sm font-normal text-muted-foreground">({visibleTickets.length})</span>
+          </h2>
+          {/* Status filter pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={cn(
+                  'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
+                  statusFilter === f.value
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground',
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -145,18 +190,22 @@ export function ClientTicketListView({ onViewTicket, onNewRequest }: ClientTicke
                     ))}
                   </tr>
                 ))
-              ) : myTickets.length === 0 ? (
+              ) : visibleTickets.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-16 text-center">
                     <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm font-medium text-foreground">No tickets yet</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {myTickets.length === 0 ? 'No tickets yet' : `No ${statusFilter} tickets`}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Submit a new ticket to get started
+                      {myTickets.length === 0
+                        ? 'Submit a new ticket to get started'
+                        : 'Try a different filter'}
                     </p>
                   </td>
                 </tr>
               ) : (
-                myTickets.map((t) => (
+                visibleTickets.map((t) => (
                   <TicketRow key={t.id} ticket={t} onClick={() => onViewTicket(t.id)} />
                 ))
               )}

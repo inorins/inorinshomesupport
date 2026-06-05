@@ -16,8 +16,8 @@ export async function runSlaCheck() {
     if (ageHours < slaHours) continue;
 
     await pool.query(
-      'UPDATE tickets SET sla_breach = TRUE, sla_breach_notified_at = NOW() WHERE id = ?',
-      [ticket.id] 
+      'UPDATE tickets SET sla_breach = TRUE, sla_breach_notified_at = ? WHERE id = ?',
+      [new Date(), ticket.id]
     );
 
     const msg = `: ${ticket.title} (${ticket.priority}, ${Math.floor(ageHours)}h old)`;

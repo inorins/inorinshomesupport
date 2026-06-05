@@ -17,6 +17,8 @@ function getAuthToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+export const SESSION_EXPIRED_EVENT = 'inorins:session-expired';
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -28,6 +30,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
     let message = `API ${res.status}: ${res.statusText}`;
     try {
       const data = await res.json();
