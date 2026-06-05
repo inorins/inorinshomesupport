@@ -67,22 +67,43 @@ export function useTicketMessages(ticketId: string) {
 }
 
 import { loadSeen } from '@/components/views/InboxView';
+import { useAuth } from '@/context/AuthContext';
 
 export function useChatUnreadCount(): number {
   const { counts } = useMessageCounts();
   const { tickets } = useTickets();
+  const { user } = useAuth();
   const seen = loadSeen();
 
-  // Mirror InboxView's scoping: for inorins users only own + unassigned tickets count
-  // We don't have user context here, so we count all tickets that are in seen map.
-  // The sidebar re-renders every 3 s when counts update, so localStorage is always fresh.
-  const scopedIds = new Set(tickets.map((t) => t.id));
+  // Mirror InboxView's scopedTickets exactly:
+  // 1. Active statuses only (no Resolved/Closed)
+  // 2. For inorins staff: own assigned + unassigned only
+  const active = tickets.filter((t) => t.status !== 'Resolved' && t.status !== 'Closed');
+  const myName = (user?.name ?? '').toLowerCase();
+  const scoped = user?.role === 'inorins'
+    ? active.filter((t) => !t.assignee?.trim() || t.assignee.toLowerCase() === myName)
+    : active;
+
+  const scopedIds = new Set(scoped.map((t) => t.id));
 
   return counts.reduce((sum, c) => {
     if (!scopedIds.has(c.ticketId)) return sum;
     if (!(c.ticketId in seen)) return sum;
     return sum + Math.max(0, c.totalCount - (seen[c.ticketId] ?? 0));
   }, 0);
+}
+
+export function useMyPermissions() {
+  const query = useQuery({
+    queryKey: ['my-permissions'],
+    queryFn: api.getMyPermissions,
+    retry: 1,
+    staleTime: 60_000,
+  });
+  return {
+    permissions: query.data ?? null,
+    isLoading: query.isLoading,
+  };
 }
 
 export function useMessageCounts() {

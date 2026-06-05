@@ -27,6 +27,17 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import type { Priority, Ticket, TicketStatus, TicketLinkEntry, TicketSystemChangeLink, SystemChange } from '@/data/mockData';
 
+// When a staff user sends a message from the ticket detail view, mark that ticket
+// as seen in the chat hub so the sent message doesn't appear as a new unread badge.
+function bumpSeenCount(ticketId: string) {
+  try {
+    const seen: Record<string, number> = JSON.parse(localStorage.getItem('chat_seen_counts_v1') ?? '{}');
+    if (ticketId in seen) {
+      localStorage.setItem('chat_seen_counts_v1', JSON.stringify({ ...seen, [ticketId]: seen[ticketId] + 1 }));
+    }
+  } catch {}
+}
+
 interface TicketDetailViewProps {
   ticketId: string;
   onBack: () => void;
@@ -310,6 +321,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
         role: user?.role === 'client' ? 'client' : 'employee',
         attachments: attachmentsPayload.length > 0 ? attachmentsPayload : undefined,
       });
+      bumpSeenCount(ticket.id);
       setReplyText('');
       setChatFiles([]);
       await Promise.all([
@@ -392,6 +404,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
         author: user?.name,
         role: 'employee',
       });
+      bumpSeenCount(ticket.id);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['messages', ticket.id] }),
         queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] }),

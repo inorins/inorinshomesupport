@@ -1,13 +1,29 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { User, Hand, Play, HelpCircle, RefreshCw } from 'lucide-react';
-import { useAllTickets } from '@/hooks/useTicketsData';
+import { User, Hand, Play, HelpCircle, RefreshCw, Lock } from 'lucide-react';
+import { useAllTickets, useMyPermissions } from '@/hooks/useTicketsData';
 import { useAuth } from '@/context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
-import type { TicketStatus, Priority } from '@/data/mockData';
+import { useToast } from '@/hooks/use-toast';
+import type { TicketStatus, Priority, Ticket, RolePermission } from '@/data/mockData';
+import type { AuthUser } from '@/services/api';
 import { cn } from '@/lib/utils';
+
+function canViewTicket(ticket: Ticket, user: AuthUser | null, permissions: RolePermission | null): boolean {
+  if (!user) return false;
+  const isOwn = (ticket.assignee ?? '').toLowerCase() === (user.name ?? '').toLowerCase();
+  if (isOwn) return true;
+  if (!permissions) return true;
+  switch (ticket.status) {
+    case 'Open':           return permissions.canViewOthersOpen;
+    case 'In Progress':    return permissions.canViewOthersInProgress;
+    case 'Resolved':       return permissions.canViewOthersResolved;
+    case 'Closed':         return permissions.canViewOthersClosed;
+    default:               return true;
+  }
+}
 
 const columns: { status: TicketStatus; label: string; color: string }[] = [
   { status: 'Open', label: 'Open', color: 'border-t-primary' },
@@ -26,6 +42,8 @@ const priorityDot: Record<Priority, string> = {
 export function TeamBoardView({ onViewTicket }: { onViewTicket: (id: string) => void }) {
   const { tickets, isLoading, refetch } = useAllTickets();
   const { user } = useAuth();
+  const { permissions } = useMyPermissions();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [claimingId, setClaimingId] = useState<string | null>(null);
 
@@ -88,15 +106,28 @@ export function TeamBoardView({ onViewTicket }: { onViewTicket: (id: string) => 
                   <p className="text-xs text-muted-foreground text-center py-8">No tickets</p>
                 ) : (
                   colTickets.map((t) => {
+                    const viewable = canViewTicket(t, user, permissions);
                     return (
                       <div
                         key={t.id}
-                        onClick={() => onViewTicket(t.id)}
-                        className="bg-card rounded-lg border border-border p-3.5 space-y-2.5 transition-shadow cursor-pointer hover:shadow-md"
+                        onClick={() => {
+                          if (viewable) {
+                            onViewTicket(t.id);
+                          } else {
+                            toast({ title: 'Access restricted', description: "You don't have permission to view this ticket.", variant: 'destructive' });
+                          }
+                        }}
+                        className={cn(
+                          'bg-card rounded-lg border border-border p-3.5 space-y-2.5 transition-shadow',
+                          viewable ? 'cursor-pointer hover:shadow-md' : 'cursor-not-allowed opacity-60',
+                        )}
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-mono text-xs font-semibold text-secondary">{t.id}</span>
-                          <div className={`h-2.5 w-2.5 rounded-full ${priorityDot[t.priority]}`} title={t.priority} />
+                          <div className="flex items-center gap-1.5">
+                            {!viewable && <span title="View restricted"><Lock className="h-3 w-3 text-muted-foreground" /></span>}
+                            <div className={`h-2.5 w-2.5 rounded-full ${priorityDot[t.priority]}`} title={t.priority} />
+                          </div>
                         </div>
                         <p className="text-sm font-medium text-foreground leading-snug">{t.title}</p>
                         <div className="flex items-center gap-1.5">

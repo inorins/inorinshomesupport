@@ -56,16 +56,22 @@ export function filterTicketsByPermissions(tickets, sessionUser, perms, userEmai
   }
 
   // ── 2. Historical ticket cutoff ─────────────────────────────────────────────
+  // Own tickets (assigned to me / reported by me) are always visible regardless of age.
+  function isOwnTicket(t) {
+    if (sessionUser.role === 'inorins') return Number(t.assigneeId) === Number(sessionUser.id);
+    if (userEmail) return (t.reporterEmail ?? '').toLowerCase() === userEmail.toLowerCase();
+    return false;
+  }
+
   if (!perms.canViewHistoricalTickets) {
-    // Block all history — only tickets created today
     const cutoff = new Date();
     cutoff.setHours(0, 0, 0, 0);
-    result = result.filter((t) => new Date(t.createdAt) >= cutoff);
+    result = result.filter((t) => isOwnTicket(t) || new Date(t.createdAt) >= cutoff);
   } else if (perms.historicalTicketDays < 3650) {
     const cutoff = new Date(
       Date.now() - perms.historicalTicketDays * 24 * 60 * 60 * 1000
     );
-    result = result.filter((t) => new Date(t.createdAt) >= cutoff);
+    result = result.filter((t) => isOwnTicket(t) || new Date(t.createdAt) >= cutoff);
   }
 
   // ── 3. "View others' tickets" restrictions ──────────────────────────────────

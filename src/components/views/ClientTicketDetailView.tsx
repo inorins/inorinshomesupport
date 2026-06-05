@@ -13,6 +13,15 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { Priority, TicketStatus } from '@/data/mockData';
 
+function bumpSeenCount(ticketId: string) {
+  try {
+    const seen: Record<string, number> = JSON.parse(localStorage.getItem('chat_seen_counts_v1') ?? '{}');
+    if (ticketId in seen) {
+      localStorage.setItem('chat_seen_counts_v1', JSON.stringify({ ...seen, [ticketId]: seen[ticketId] + 1 }));
+    }
+  } catch {}
+}
+
 interface ClientTicketDetailViewProps {
   ticketId: string;
   onBack: () => void;
@@ -126,6 +135,7 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
         author: user?.name,
         attachments: attachmentsPayload.length > 0 ? attachmentsPayload : undefined,
       });
+      bumpSeenCount(ticket.id);
       setReplyText('');
       setChatFiles([]);
       await Promise.all([

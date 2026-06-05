@@ -182,17 +182,23 @@ function ConversationPanel({ ticket, currentUser, onClose, onMessagesLoaded }: C
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Must be computed before effects so visibleMessages.length can be a dependency
+  const visibleMessages = currentUser?.role === 'client'
+    ? messages.filter((m) => !m.isInternal)
+    : messages;
+
   // Scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  // Notify parent of current message count (stable callback, bail out if unchanged)
+  // Notify parent with the count of messages the user can actually see,
+  // so seenCounts aligns with what countMap tracks for this role.
   useEffect(() => {
     if (!isLoading) {
-      onMessagesLoaded(ticket.id, messages.length);
+      onMessagesLoaded(ticket.id, visibleMessages.length);
     }
-  }, [ticket.id, messages.length, isLoading, onMessagesLoaded]);
+  }, [ticket.id, visibleMessages.length, isLoading, onMessagesLoaded]);
 
   const sendMutation = useMutation({
     mutationFn: (content: string) =>
@@ -216,10 +222,6 @@ function ConversationPanel({ ticket, currentUser, onClose, onMessagesLoaded }: C
     if (!trimmed || sendMutation.isPending) return;
     sendMutation.mutate(trimmed);
   }
-
-  const visibleMessages = currentUser?.role === 'client'
-    ? messages.filter((m) => !m.isInternal)
-    : messages;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -328,10 +330,12 @@ export function InboxView({ onUnreadChange }: InboxViewProps = {}) {
   const [seenCounts, setSeenCounts] = useState<Record<string, number>>(loadSeen);
 
   // Staff: only own + unassigned tickets. Clients: already scoped by API.
+  // Only show active tickets in chat — resolved/closed are excluded.
   const scopedTickets = useMemo(() => {
-    if (user?.role !== 'inorins') return tickets;
+    const active = tickets.filter((t) => t.status !== 'Resolved' && t.status !== 'Closed');
+    if (user?.role !== 'inorins') return active;
     const myName = (user.name ?? '').toLowerCase();
-    return tickets.filter((t) => !t.assignee?.trim() || t.assignee.toLowerCase() === myName);
+    return active.filter((t) => !t.assignee?.trim() || t.assignee.toLowerCase() === myName);
   }, [tickets, user]);
 
   // O(1) lookup maps built once per counts update
