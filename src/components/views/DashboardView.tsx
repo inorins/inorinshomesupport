@@ -1,9 +1,11 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 import {
   TicketCheck, Clock, AlertTriangle, RefreshCw,
   Download, Filter, X, CornerUpRight,
   CheckSquare, Square, UserCheck, XCircle, Users,
 } from 'lucide-react';
+import { formatRelativeTime } from '@/lib/formatRelativeTime';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -165,34 +167,34 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
   }, [isAdmin, dataUpdatedAt]);
 
   const isInorins = user?.role === 'inorins';
-  const viewedKey = isInorins && user?.id ? `inorins_viewed_${user.id}` : null;
-  const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
+  const viewedKey = isInorins && user?.id ? `inorins_viewed_ts_${user.id}` : null;
+  const [lastViewed, setLastViewed] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!viewedKey) return;
     try {
       const raw = localStorage.getItem(viewedKey);
-      if (raw) setViewedIds(new Set(JSON.parse(raw) as string[]));
+      if (raw) setLastViewed(JSON.parse(raw) as Record<string, string>);
     } catch { /* ignore */ }
   }, [viewedKey]);
 
   const handleViewTicket = (id: string) => {
     if (viewedKey) {
-      setViewedIds((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        localStorage.setItem(viewedKey, JSON.stringify([...next]));
+      const ts = new Date().toISOString();
+      setLastViewed((prev) => {
+        const next = { ...prev, [id]: ts };
+        localStorage.setItem(viewedKey, JSON.stringify(next));
         return next;
       });
     }
     onViewTicket(id);
   };
 
-  const [filterPriority, setFilterPriority] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('active');
-  const [filterSystem, setFilterSystem] = useState<string>('all');
-  const [filterBank, setFilterBank] = useState<string>('all');
-  const [myQueueOnly, setMyQueueOnly] = useState(false);
+  const [filterPriority, setFilterPriority] = useLocalStorage<string>('dash:filterPriority', 'all');
+  const [filterStatus, setFilterStatus] = useLocalStorage<string>('dash:filterStatus', 'active');
+  const [filterSystem, setFilterSystem] = useLocalStorage<string>('dash:filterSystem', 'all');
+  const [filterBank, setFilterBank] = useLocalStorage<string>('dash:filterBank', 'all');
+  const [myQueueOnly, setMyQueueOnly] = useLocalStorage<boolean>('dash:myQueueOnly', false);
 
   const myQueueCount = useMemo(() =>
     tickets.filter((t) => t.assignee === user?.name && t.status !== 'Resolved' && t.status !== 'Closed').length,
@@ -550,7 +552,10 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
               ) : (
                 filtered.map((t) => {
                   const sla = getSLAInfo(t);
-                  const isUnread = isInorins && !viewedIds.has(t.id);
+                  const isUnread = isInorins && (
+                    !lastViewed[t.id] ||
+                    new Date(t.lastUpdated ?? t.createdAt) > new Date(lastViewed[t.id])
+                  );
                   const isChecked = selectedIds.has(t.id);
                   return (
                     <tr
@@ -597,7 +602,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
                       <td className="px-5 py-3.5 cursor-pointer" onClick={() => handleViewTicket(t.id)}><PriorityBadge priority={t.priority} /></td>
                       <td className="px-5 py-3.5 cursor-pointer" onClick={() => handleViewTicket(t.id)}><StatusBadge status={t.status} /></td>
                       <td className={cn('px-5 py-3.5 text-xs cursor-pointer', sla.className)} onClick={() => handleViewTicket(t.id)}>{sla.label}</td>
-                      <td className="px-5 py-3.5 text-muted-foreground cursor-pointer" onClick={() => handleViewTicket(t.id)}>{t.lastUpdated}</td>
+                      <td className="px-5 py-3.5 text-muted-foreground cursor-pointer" onClick={() => handleViewTicket(t.id)}>{formatRelativeTime(t.lastUpdated ?? t.createdAt)}</td>
                     </tr>
                   );
                 })

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { cn } from '@/lib/utils';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppSidebar } from '@/components/layout/AppSidebar';
@@ -17,6 +18,7 @@ import { PermissionsView } from '@/components/views/PermissionsView';
 import { AuditLogView } from '@/components/views/AuditLogView';
 import { SessionManagementView } from '@/components/views/SessionManagementView';
 import { useAuth } from '@/context/AuthContext';
+import { CommandPalette } from '@/components/CommandPalette';
 
 function StaffTicketDetailRoute() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -112,9 +114,15 @@ const Index = () => {
   };
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage('sidebar:collapsed', false);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-surface">
+      <CommandPalette
+        onNavigate={(v) => { handleNavigate(v); setSidebarOpen(false); }}
+        onNewTicket={() => setShowCreateTicket(true)}
+        isAdmin={isAdmin}
+      />
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -126,7 +134,13 @@ const Index = () => {
         'fixed inset-y-0 left-0 z-50 md:relative md:z-auto md:translate-x-0 transition-transform duration-200',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       )}>
-        <AppSidebar activeView={activeView} onNavigate={(v) => { handleNavigate(v); setSidebarOpen(false); }} isAdmin={isAdmin} />
+        <AppSidebar
+          activeView={activeView}
+          onNavigate={(v) => { handleNavigate(v); setSidebarOpen(false); }}
+          isAdmin={isAdmin}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
+        />
       </div>
       <div className="flex-1 flex flex-col h-screen min-w-0">
         <AppHeader

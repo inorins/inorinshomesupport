@@ -59,7 +59,7 @@ export function AppHeader({ onNewTicket, searchQuery = '', onSearchChange, onMen
         </div>
 
         <button
-          onClick={logout}
+          onClick={() => logout()}
           title="Sign out"
           className="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
         >

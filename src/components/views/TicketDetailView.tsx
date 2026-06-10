@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag, Phone, Briefcase, CheckCircle2, Timer, CornerUpRight, Mail, ExternalLink, Link2, Unlink, Plus,
@@ -108,6 +108,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const [sendError, setSendError] = useState('');
   const [chatFiles, setChatFiles] = useState<File[]>([]);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [currentStatus, setCurrentStatus] = useState<TicketStatus | ''>('');
   const [currentAssignee, setCurrentAssignee] = useState<string>('');
@@ -246,6 +247,13 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
   const displayAssignee = currentAssignee || ticket?.assignee || 'Unassigned';
   const displayRequestType = (ticket?.requestType ?? 'Issue') as 'Issue' | 'Add Form' | 'Add Report' | 'Update';
   const isLocked = displayStatus === 'Resolved' || displayStatus === 'Closed';
+
+  useEffect(() => {
+    if (ticketLoading || !ticket || isLocked) return;
+    const id = setTimeout(() => replyTextareaRef.current?.focus(), 80);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket?.id, ticketLoading]);
 
   const applyStatusChange = async (status: TicketStatus) => {
     setCurrentStatus(status);
@@ -1072,6 +1080,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
             />
             <div className="flex gap-2">
               <Textarea
+                ref={replyTextareaRef}
                 placeholder={isInternal ? 'Write an internal note…' : 'Type your reply to the client…'}
                 rows={2}
                 className={cn('flex-1 resize-none text-sm', isInternal ? 'border-warning/40 bg-card' : '')}
@@ -1079,6 +1088,16 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                 onChange={(e) => setReplyText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend();
+                }}
+                onPaste={(e) => {
+                  const images = Array.from(e.clipboardData.items)
+                    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+                    .map((item) => item.getAsFile())
+                    .filter((f): f is File => f !== null && f.size <= 10 * 1024 * 1024);
+                  if (images.length > 0) {
+                    e.preventDefault();
+                    setChatFiles((prev) => [...prev, ...images]);
+                  }
                 }}
               />
               <div className="flex flex-col gap-1.5 self-end">

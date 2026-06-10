@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { User, RefreshCw, Filter, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,9 +30,9 @@ const PRIORITY_ORDER: Record<Priority, number> = {
 export function AllBoardView({ onViewTicket }: { onViewTicket: (id: string) => void }) {
   const { tickets, isLoading, refetch } = useTickets();
 
-  const [filterAssignee, setFilterAssignee] = useState('all');
-  const [filterPriority, setFilterPriority] = useState('all');
-  const [filterSystem,   setFilterSystem]   = useState('all');
+  const [filterAssignee, setFilterAssignee] = useLocalStorage<string>('board:filterAssignee', 'all');
+  const [filterPriority, setFilterPriority] = useLocalStorage<string>('board:filterPriority', 'all');
+  const [filterSystem,   setFilterSystem]   = useLocalStorage<string>('board:filterSystem', 'all');
 
   const assignees = useMemo(() => {
     const names = tickets.map((t) => t.assignee?.trim()).filter(Boolean) as string[];

@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
     setAuthToken(null);
-    if (reason) toast.warning(reason);
+    if (typeof reason === 'string' && reason) toast.warning(reason);
   };
 
   // Auto-logout when the server rejects the token (expired or revoked)

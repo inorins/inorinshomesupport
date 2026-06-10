@@ -6,6 +6,7 @@ import { useTickets } from '@/hooks/useTicketsData';
 import { useAuth } from '@/context/AuthContext';
 import type { Priority, TicketStatus, Ticket } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+import { formatRelativeTime } from '@/lib/formatRelativeTime';
 
 type StatusFilter = 'All' | TicketStatus;
 
@@ -53,8 +54,8 @@ function TicketRow({ ticket, onClick }: { ticket: Ticket; onClick: () => void })
       </td>
       <td className="px-5 py-3.5"><PriorityBadge priority={ticket.priority} /></td>
       <td className="px-5 py-3.5"><StatusBadge status={ticket.status} /></td>
-      <td className="px-5 py-3.5 text-xs text-muted-foreground">{new Date(ticket.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' })}</td>
-      <td className="px-5 py-3.5 text-xs text-muted-foreground">{ticket.lastUpdated}</td>
+      <td className="px-5 py-3.5 text-xs text-muted-foreground">{formatRelativeTime(ticket.createdAt)}</td>
+      <td className="px-5 py-3.5 text-xs text-muted-foreground">{formatRelativeTime(ticket.lastUpdated)}</td>
       <td className="px-5 py-3.5">
         <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
       </td>

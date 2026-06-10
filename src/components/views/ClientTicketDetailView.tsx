@@ -468,6 +468,17 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend();
                       }}
+                      onPaste={(e) => {
+                        const images = Array.from(e.clipboardData.items)
+                          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+                          .map((item) => item.getAsFile())
+                          .filter((f): f is File => f !== null && f.size <= MAX_ATTACHMENT_SIZE);
+                        if (images.length > 0) {
+                          e.preventDefault();
+                          setUploadError('');
+                          setChatFiles((prev) => [...prev, ...images]);
+                        }
+                      }}
                     />
                     <div className="flex flex-col gap-1.5 self-end">
                       <Button
