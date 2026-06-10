@@ -250,6 +250,15 @@ export async function runMigrations() {
     `);
     console.log('[db] Migration: created system_change_items table');
   }
+
+  if (!await columnExists('system_change_items', 'attachment_name')) {
+    await pool.query(`ALTER TABLE system_change_items ADD COLUMN attachment_name VARCHAR(255) NULL`);
+    console.log('[db] Migration: added system_change_items.attachment_name');
+  }
+  if (!await columnExists('system_change_items', 'attachment_url')) {
+    await pool.query(`ALTER TABLE system_change_items ADD COLUMN attachment_url VARCHAR(500) NULL`);
+    console.log('[db] Migration: added system_change_items.attachment_url');
+  }
 }
 
 export { pool };

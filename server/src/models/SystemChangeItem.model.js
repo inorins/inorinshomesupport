@@ -10,6 +10,8 @@ function toJs(row) {
     objectName: row.object_name,
     beforeState: row.before_state,
     afterState: row.after_state,
+    attachmentName: row.attachment_name ?? undefined,
+    attachmentUrl: row.attachment_url ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -71,9 +73,9 @@ export const SystemChangeItemModel = {
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         await conn.query(
-          `INSERT INTO system_change_items (change_id, sort_order, change_type, object_name, before_state, after_state)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [changeId, i, item.changeType ?? null, item.objectName ?? null, item.beforeState ?? null, item.afterState ?? null]
+          `INSERT INTO system_change_items (change_id, sort_order, change_type, object_name, before_state, after_state, attachment_name, attachment_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [changeId, i, item.changeType ?? null, item.objectName ?? null, item.beforeState ?? null, item.afterState ?? null, item.attachmentName ?? null, item.attachmentUrl ?? null]
         );
       }
       await conn.commit();

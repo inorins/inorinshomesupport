@@ -97,6 +97,8 @@ export interface SystemChangeItem {
   objectName?: string;
   beforeState?: string;
   afterState?: string;
+  attachmentName?: string;
+  attachmentUrl?: string;
 }
 
 export interface SystemChange {

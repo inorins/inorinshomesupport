@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, CheckCircle2, Clock, CircleDot, Filter, Building2, ChevronDown, ChevronUp, X, Ticket } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, Clock, CircleDot, Filter, Building2, ChevronDown, ChevronUp, X, Ticket, Paperclip, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +45,9 @@ interface ItemDraft {
   objectName: string;
   beforeState: string;
   afterState: string;
+  attachmentFile?: File | null;
+  attachmentName?: string;
+  attachmentUrl?: string;
 }
 
 function emptyItem(key: number): ItemDraft {
@@ -55,7 +58,7 @@ function emptyItem(key: number): ItemDraft {
 
 function ItemCard({ item, index }: { item: SystemChangeItem; index: number }) {
   const [expanded, setExpanded] = useState(true);
-  const hasDetails = item.beforeState || item.afterState;
+  const hasDetails = item.beforeState || item.afterState || item.attachmentUrl;
 
   return (
     <div className="rounded border border-border bg-background">
@@ -85,21 +88,36 @@ function ItemCard({ item, index }: { item: SystemChangeItem; index: number }) {
       </div>
 
       {expanded && hasDetails && (
-        <div className="px-3 pb-3 grid grid-cols-2 gap-3">
-          {item.beforeState && (
-            <div className="rounded border border-border bg-muted/30 p-2.5">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1.5">Before</p>
-              <pre className="text-[11px] text-foreground leading-relaxed whitespace-pre-wrap font-mono break-words">
-                {item.beforeState}
-              </pre>
-            </div>
+        <div className="px-3 pb-3 space-y-2">
+          {item.attachmentUrl && (
+            <a
+              href={item.attachmentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary hover:underline"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {item.attachmentName ?? 'Download attachment'}
+            </a>
           )}
-          {item.afterState && (
-            <div className="rounded border border-success/25 bg-success/5 p-2.5">
-              <p className="text-[10px] font-bold text-success uppercase tracking-wide mb-1.5">After</p>
-              <pre className="text-[11px] text-foreground leading-relaxed whitespace-pre-wrap font-mono break-words">
-                {item.afterState}
-              </pre>
+          {(item.beforeState || item.afterState) && (
+            <div className="grid grid-cols-2 gap-3">
+              {item.beforeState && (
+                <div className="rounded border border-border bg-muted/30 p-2.5">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1.5">Before</p>
+                  <pre className="text-[11px] text-foreground leading-relaxed whitespace-pre-wrap font-mono break-words">
+                    {item.beforeState}
+                  </pre>
+                </div>
+              )}
+              {item.afterState && (
+                <div className="rounded border border-success/25 bg-success/5 p-2.5">
+                  <p className="text-[10px] font-bold text-success uppercase tracking-wide mb-1.5">After</p>
+                  <pre className="text-[11px] text-foreground leading-relaxed whitespace-pre-wrap font-mono break-words">
+                    {item.afterState}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -344,6 +362,8 @@ function BankManageDialog({ change, onClose }: { change: SystemChange; onClose: 
 
 // ── Item editor row (in form) ─────────────────────────────────────────────────
 
+const ALLOWED_ITEM_EXTENSIONS = ['.sql', '.txt', '.log', '.pdf', '.csv', '.xls', '.xlsx', '.png', '.jpg', '.jpeg'];
+
 function ItemEditorRow({
   item, index, onChange, onRemove, canRemove,
 }: {
@@ -353,6 +373,22 @@ function ItemEditorRow({
   onRemove: () => void;
   canRemove: boolean;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (file) {
+      onChange({ attachmentFile: file, attachmentName: file.name, attachmentUrl: undefined });
+    }
+    e.target.value = '';
+  };
+
+  const clearAttachment = () => {
+    onChange({ attachmentFile: null, attachmentName: undefined, attachmentUrl: undefined });
+  };
+
+  const currentAttachmentName = item.attachmentFile?.name ?? item.attachmentName;
+
   return (
     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2.5">
       <div className="flex items-center justify-between gap-2">
@@ -383,9 +419,45 @@ function ItemEditorRow({
           />
         </div>
       </div>
+
+      {/* File attachment */}
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">Script / File Attachment <span className="text-muted-foreground/60">(sql, txt, pdf, csv, xlsx…)</span></label>
+        {currentAttachmentName ? (
+          <div className="flex items-center gap-2 rounded border border-border bg-background px-2.5 py-1.5">
+            <FileText className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="text-xs text-foreground flex-1 truncate">{currentAttachmentName}</span>
+            {item.attachmentUrl && !item.attachmentFile && (
+              <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                className="text-[11px] text-primary hover:underline shrink-0">view</a>
+            )}
+            <button type="button" onClick={clearAttachment}
+              className="text-muted-foreground hover:text-destructive shrink-0">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground border border-dashed border-border rounded px-3 py-1.5 hover:border-primary hover:text-primary transition-colors w-full"
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+            Attach file
+          </button>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ALLOWED_ITEM_EXTENSIONS.join(',')}
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground font-medium">Before</label>
+          <label className="text-xs text-muted-foreground font-medium">Before <span className="text-muted-foreground/60">(optional)</span></label>
           <Textarea placeholder="Previous state / original code…" rows={4}
             className="text-xs font-mono resize-y"
             value={item.beforeState}
@@ -393,7 +465,7 @@ function ItemEditorRow({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-success font-medium">After</label>
+          <label className="text-xs text-success font-medium">After <span className="text-muted-foreground/60">(optional)</span></label>
           <Textarea placeholder="New state / updated code…" rows={4}
             className="text-xs font-mono resize-y border-success/30 focus-visible:ring-success/30"
             value={item.afterState}
@@ -434,6 +506,8 @@ function fromChange(c: SystemChange): ChangeFormData {
       objectName: it.objectName ?? '',
       beforeState: it.beforeState ?? '',
       afterState: it.afterState ?? '',
+      attachmentName: it.attachmentName,
+      attachmentUrl: it.attachmentUrl,
     }));
   } else if (c.changeType || c.objectName || c.beforeState || c.afterState) {
     // Legacy single-item migration into the editor
@@ -587,14 +661,34 @@ export function SystemChangesView({ isAdmin = false }: { isAdmin?: boolean }) {
         changeId = created.id;
       }
       // Save items via setAll
-      const itemsPayload = form.items
-        .filter((it) => it.changeType || it.objectName || it.beforeState || it.afterState)
-        .map((it) => ({
-          changeType: it.changeType || undefined,
-          objectName: it.objectName || undefined,
-          beforeState: it.beforeState || undefined,
-          afterState: it.afterState || undefined,
-        }));
+      const readFileAsBase64 = (file: File): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+      const itemsPayload = await Promise.all(
+        form.items
+          .filter((it) => it.changeType || it.objectName || it.beforeState || it.afterState || it.attachmentFile || it.attachmentUrl)
+          .map(async (it) => {
+            const base: Record<string, string | undefined> = {
+              changeType: it.changeType || undefined,
+              objectName: it.objectName || undefined,
+              beforeState: it.beforeState || undefined,
+              afterState: it.afterState || undefined,
+            };
+            if (it.attachmentFile) {
+              base.attachmentContent = await readFileAsBase64(it.attachmentFile);
+              base.attachmentName = it.attachmentFile.name;
+            } else if (it.attachmentUrl) {
+              base.attachmentUrl = it.attachmentUrl;
+              base.attachmentName = it.attachmentName;
+            }
+            return base;
+          })
+      );
       await api.setSystemChangeItems(changeId, itemsPayload);
       queryClient.invalidateQueries({ queryKey: ['system-changes'] });
       setDialogOpen(false);

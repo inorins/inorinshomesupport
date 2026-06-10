@@ -14,6 +14,7 @@ const MIME_TYPES = {
   '.csv': 'text/csv; charset=utf-8',
   '.txt': 'text/plain',
   '.log': 'text/plain',
+  '.sql': 'text/plain',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',

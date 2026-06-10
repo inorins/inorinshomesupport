@@ -177,7 +177,7 @@ export const api = {
   // System change items
   getSystemChangeItems: (changeId: number) =>
     request<import('@/data/mockData').SystemChangeItem[]>(`/system-changes/${changeId}/items`),
-  setSystemChangeItems: (changeId: number, items: Array<{ changeType?: string; objectName?: string; beforeState?: string; afterState?: string }>) =>
+  setSystemChangeItems: (changeId: number, items: Array<{ changeType?: string; objectName?: string; beforeState?: string; afterState?: string; attachmentContent?: string; attachmentName?: string; attachmentUrl?: string }>) =>
     request<import('@/data/mockData').SystemChangeItem[]>(`/system-changes/${changeId}/items`, { method: 'PUT', body: JSON.stringify({ items }) }),
 
   // System change ↔ ticket links

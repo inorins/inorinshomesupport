@@ -1,3 +1,6 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
 import { SystemChangeModel } from '../models/SystemChange.model.js';
 import { SystemChangeBankModel } from '../models/SystemChangeBank.model.js';
 import { SystemChangeItemModel } from '../models/SystemChangeItem.model.js';
@@ -5,6 +8,23 @@ import { SystemChangeTicketModel } from '../models/SystemChangeTicket.model.js';
 import { getSessionUser } from '../utils/token.js';
 import { getEffectivePermissions, isSuperAdmin } from '../services/permission.service.js';
 import { UserModel } from '../models/User.model.js';
+import { UPLOADS_ROOT, ALLOWED_EXTENSIONS } from '../middleware/upload.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+async function saveItemFile(changeId, fileName, base64Content) {
+  const uploadDir = path.join(UPLOADS_ROOT, `sc-${changeId}`);
+  await fs.mkdir(uploadDir, { recursive: true });
+  const safeName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const ext = path.extname(safeName).toLowerCase();
+  if (!ALLOWED_EXTENSIONS.has(ext)) throw new Error(`File type ${ext} is not allowed.`);
+  const savedName = `${Date.now()}-${safeName}`;
+  const filePath = path.join(uploadDir, savedName);
+  if (!path.resolve(filePath).startsWith(path.resolve(uploadDir) + path.sep)) throw new Error('Invalid file path.');
+  const content = base64Content.includes(',') ? base64Content.split(',').pop() : base64Content;
+  await fs.writeFile(filePath, Buffer.from(content ?? '', 'base64'));
+  return `/api/download/sc-${changeId}/${encodeURIComponent(savedName)}`;
+}
 
 async function canManage(req) {
   const sessionUser = getSessionUser(req);
@@ -131,7 +151,18 @@ export const SystemChangeController = {
     if (!change) return res.status(404).json({ message: 'System change not found.' });
     const items = req.body?.items;
     if (!Array.isArray(items)) return res.status(400).json({ message: 'items array is required.' });
-    const result = await SystemChangeItemModel.setAll(id, items);
+    const processedItems = await Promise.all(items.map(async (item) => {
+      if (typeof item.attachmentContent === 'string' && item.attachmentName) {
+        try {
+          const url = await saveItemFile(id, item.attachmentName, item.attachmentContent);
+          return { ...item, attachmentUrl: url, attachmentContent: undefined };
+        } catch {
+          return { ...item, attachmentContent: undefined };
+        }
+      }
+      return item;
+    }));
+    const result = await SystemChangeItemModel.setAll(id, processedItems);
     return res.json(result);
   },
 
