@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { env } from '../config/env.js';
 
-const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours
+const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;// for now  8 hours
 
 export function createSessionToken(user) {
   const payload = Buffer.from(JSON.stringify({

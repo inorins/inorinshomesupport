@@ -18,17 +18,24 @@ function getAuthToken(): string | null {
 }
 
 export const SESSION_EXPIRED_EVENT = 'inorins:session-expired';
+export const NETWORK_ERROR_EVENT = 'inorins:network-error';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getAuthToken();
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
-    },
-    ...options,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options?.headers,
+      },
+      ...options,
+    });
+  } catch {
+    window.dispatchEvent(new Event(NETWORK_ERROR_EVENT));
+    throw new Error('Failed to fetch');
+  }
   if (!res.ok) {
     if (res.status === 401) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Shield, Building2, Eye, EyeOff } from 'lucide-react';
+import { Shield, Building2, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { api } from '@/services/api';
 import type { AuthUser } from '@/services/api';
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, logoutReason, clearLogoutReason } = useAuth();
   const [demoUsers, setDemoUsers] = useState<AuthUser[]>([]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -87,6 +87,14 @@ export function LoginPage() {
         </div>
 
         <div className="w-full max-w-md">
+          {logoutReason && (
+            <div className="mb-6 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex-1">{logoutReason}</span>
+              <button type="button" onClick={clearLogoutReason} className="shrink-0 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200">✕</button>
+            </div>
+          )}
+
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
             <p className="text-sm text-muted-foreground mt-1">Sign in to your support portal account</p>
