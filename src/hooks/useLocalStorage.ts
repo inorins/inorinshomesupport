@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export function useLocalStorage<T>(
   key: string,
@@ -12,6 +12,22 @@ export function useLocalStorage<T>(
       return defaultValue;
     }
   });
+
+  // Sync when another part of the same page writes to this key via dispatchStorageEvent
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key !== key) return;
+      if (e.newValue === null) {
+        setValue(defaultValue);
+        return;
+      }
+      try {
+        setValue(JSON.parse(e.newValue) as T);
+      } catch {}
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [key, defaultValue]);
 
   const set = useCallback(
     (newValue: T | ((prev: T) => T)) => {

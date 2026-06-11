@@ -14,6 +14,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/services/api';
 import type { Priority, TicketStatus, Ticket } from '@/data/mockData';
+import { resolveTicketBankName } from '@/lib/ticketUtils';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -41,23 +42,6 @@ function getSLAInfo(ticket: Ticket): { label: string; className: string } {
   return { label: `${Math.ceil(hoursLeft)}h left`, className: 'text-success' };
 }
 
-const EMAIL_BANK_MAP: Record<string, string> = {
-  'guheshwori.com.np': 'Guheshwori',
-  'reliancebank.com.np': 'Reliance',
-  'progressivebank.com.np': 'Progressive',
-  'ganapatibank.com.np': 'Ganapati',
-  'goodwillbank.com.np': 'Goodwill',
-  'shreefinance.com.np': 'Shree Finance',
-};
-
-function resolveTicketBankName(ticket: Ticket) {
-  if (ticket.bankName?.trim()) {
-    return ticket.bankName;
-  }
-  const email = String(ticket.reporterEmail ?? '').toLowerCase();
-  const domain = email.includes('@') ? email.split('@')[1] : '';
-  return EMAIL_BANK_MAP[domain] ?? 'Inorins';
-}
 
 function exportToCSV(data: Ticket[]) {
   const headers = ['ID', 'Title', 'System', 'Bank', 'Module', 'Priority', 'Status', 'Environment', 'Reporter', 'Assignee', 'Created'];
@@ -194,6 +178,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
   const [filterStatus, setFilterStatus] = useLocalStorage<string>('dash:filterStatus', 'active');
   const [filterSystem, setFilterSystem] = useLocalStorage<string>('dash:filterSystem', 'all');
   const [filterBank, setFilterBank] = useLocalStorage<string>('dash:filterBank', 'all');
+  const [filterReporter, setFilterReporter] = useLocalStorage<string>('dash:filterReporter', 'all');
   const [myQueueOnly, setMyQueueOnly] = useLocalStorage<boolean>('dash:myQueueOnly', false);
 
   const myQueueCount = useMemo(() =>
@@ -203,6 +188,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
 
   const systems = useMemo(() => [...new Set(tickets.map((t) => t.system))], [tickets]);
   const banks = useMemo(() => [...new Set(tickets.map(resolveTicketBankName))].sort(), [tickets]);
+  const reporters = useMemo(() => [...new Set(tickets.map((t) => t.reporterEmail).filter(Boolean))].sort(), [tickets]);
 
   const filtered = useMemo(() => {
     const ACTIVE_STATUSES = new Set(['Open', 'In Progress', 'Pending Client']);
@@ -213,6 +199,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
       if (filterStatus !== 'all' && filterStatus !== 'active' && t.status !== filterStatus) return false;
       if (filterSystem !== 'all' && t.system !== filterSystem) return false;
       if (filterBank !== 'all' && resolveTicketBankName(t) !== filterBank) return false;
+      if (filterReporter !== 'all' && t.reporterEmail !== filterReporter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
@@ -232,7 +219,7 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
       return new Date(b.lastUpdated ?? b.createdAt).getTime() - new Date(a.lastUpdated ?? a.createdAt).getTime();
     });
     return base;
-  }, [tickets, filterPriority, filterStatus, filterSystem, filterBank, searchQuery, myQueueOnly, user]);
+  }, [tickets, filterPriority, filterStatus, filterSystem, filterBank, filterReporter, searchQuery, myQueueOnly, user]);
 
   const kpiCards = useMemo(() => [
     {
@@ -255,13 +242,14 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
     },
   ], [tickets]);
 
-  const hasFilters = filterPriority !== 'all' || filterStatus !== 'active' || filterSystem !== 'all' || filterBank !== 'all' || myQueueOnly;
+  const hasFilters = filterPriority !== 'all' || filterStatus !== 'active' || filterSystem !== 'all' || filterBank !== 'all' || filterReporter !== 'all' || myQueueOnly;
 
   const clearFilters = () => {
     setFilterPriority('all');
     setFilterStatus('active');
     setFilterSystem('all');
     setFilterBank('all');
+    setFilterReporter('all');
     setMyQueueOnly(false);
   };
 
@@ -395,6 +383,18 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
             <SelectItem value="all">All Banks</SelectItem>
             {banks.map((b) => (
               <SelectItem key={b} value={b}>{b}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterReporter} onValueChange={setFilterReporter}>
+          <SelectTrigger className="h-8 w-48 text-xs">
+            <SelectValue placeholder="Reporter Email" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Reporters</SelectItem>
+            {reporters.map((email) => (
+              <SelectItem key={email} value={email}>{email}</SelectItem>
             ))}
           </SelectContent>
         </Select>
