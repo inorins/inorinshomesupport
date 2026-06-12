@@ -1,4 +1,5 @@
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+import { ContactPicker } from '@/components/client/ContactPicker';
 import { Upload, FileText, Send, CheckCircle, ChevronsUpDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -369,7 +370,15 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
 
           {/* Contact Person */}
           <div className="pt-3 border-t border-border space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact Person for this ticket</p>
+            <ContactPicker
+              fields={{ contactName, contactDesignation, contactPhone, contactEmail }}
+              onApply={({ contactName: n, contactDesignation: d, contactPhone: p, contactEmail: e }) => {
+                setContactName(n);
+                setContactDesignation(d);
+                setContactPhone(p);
+                setContactEmail(e);
+              }}
+            />
             <div className="space-y-1.5">
               <Label>Name <span className="text-primary">*</span></Label>
               <Input

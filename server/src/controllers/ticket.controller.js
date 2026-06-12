@@ -14,7 +14,7 @@ import { TicketLinkModel } from '../models/TicketLink.model.js';
 
 const FIELD_MAX = {
   title: 200, description: 5000, moduleDetails: 2000, reporter: 100,
-  reporterEmail: 200, contactName: 100, contactDesignation: 100, contactPhone: 30,
+  reporterEmail: 200, contactName: 100, contactDesignation: 100, contactPhone: 30, contactEmail: 255,
   resolutionSummary: 3000, resolutionCause: 3000, resolutionPrevention: 3000,
 };
 const PRIORITIES = new Set(['Critical', 'High', 'Medium', 'Low']);
@@ -384,7 +384,7 @@ export const TicketController = {
 
     const payload = req.body ?? {};
     const allowed = ['title', 'description', 'priority', 'requestType', 'requestedDelivery',
-      'system', 'module', 'form', 'moduleDetails', 'contactName', 'contactDesignation', 'contactPhone'];
+      'system', 'module', 'form', 'moduleDetails', 'contactName', 'contactDesignation', 'contactPhone', 'contactEmail'];
     const updates = {};
     for (const field of allowed) {
       if (field in payload && typeof payload[field] === 'string') {

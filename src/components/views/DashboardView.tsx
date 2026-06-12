@@ -4,6 +4,7 @@ import {
   TicketCheck, Clock, AlertTriangle, RefreshCw,
   Download, Filter, X, CornerUpRight,
   CheckSquare, Square, UserCheck, XCircle, Users,
+  BookmarkPlus, Bookmark, Trash2,
 } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/formatRelativeTime';
 import { Badge } from '@/components/ui/badge';
@@ -180,6 +181,41 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
   const [filterBank, setFilterBank] = useLocalStorage<string>('dash:filterBank', 'all');
   const [filterReporter, setFilterReporter] = useLocalStorage<string>('dash:filterReporter', 'all');
   const [myQueueOnly, setMyQueueOnly] = useLocalStorage<boolean>('dash:myQueueOnly', false);
+
+  interface FilterPreset {
+    id: string;
+    name: string;
+    filters: { priority: string; status: string; system: string; bank: string; reporter: string; myQueueOnly: boolean };
+  }
+  const [filterPresets, setFilterPresets] = useLocalStorage<FilterPreset[]>('dash:filterPresets', []);
+  const [showPresetInput, setShowPresetInput] = useState(false);
+  const [presetNameInput, setPresetNameInput] = useState('');
+
+  const savePreset = () => {
+    const name = presetNameInput.trim();
+    if (!name) return;
+    const preset: FilterPreset = {
+      id: Date.now().toString(),
+      name,
+      filters: { priority: filterPriority, status: filterStatus, system: filterSystem, bank: filterBank, reporter: filterReporter, myQueueOnly },
+    };
+    setFilterPresets((prev) => [...prev, preset]);
+    setPresetNameInput('');
+    setShowPresetInput(false);
+  };
+
+  const applyPreset = (preset: FilterPreset) => {
+    setFilterPriority(preset.filters.priority);
+    setFilterStatus(preset.filters.status);
+    setFilterSystem(preset.filters.system);
+    setFilterBank(preset.filters.bank);
+    setFilterReporter(preset.filters.reporter);
+    setMyQueueOnly(preset.filters.myQueueOnly);
+  };
+
+  const deletePreset = (id: string) => {
+    setFilterPresets((prev) => prev.filter((p) => p.id !== id));
+  };
 
   const myQueueCount = useMemo(() =>
     tickets.filter((t) => t.assignee === user?.name && t.status !== 'Resolved' && t.status !== 'Closed').length,
@@ -449,8 +485,62 @@ export function DashboardView({ onViewTicket, searchQuery = '' }: DashboardViewP
             Clear
           </button>
         )}
-  
+
+        {hasFilters && !showPresetInput && (
+          <button
+            onClick={() => setShowPresetInput(true)}
+            className="flex items-center gap-1 h-8 px-2 rounded-md text-xs text-muted-foreground hover:text-foreground transition-colors"
+            title="Save current filters as a preset"
+          >
+            <BookmarkPlus className="h-3.5 w-3.5" />
+            Save preset
+          </button>
+        )}
+
+        {showPresetInput && (
+          <div className="flex items-center gap-1">
+            <input
+              autoFocus
+              value={presetNameInput}
+              onChange={(e) => setPresetNameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') { setShowPresetInput(false); setPresetNameInput(''); } }}
+              placeholder="Preset name…"
+              className="h-8 px-2 rounded-md border border-border text-xs bg-background w-32 focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <button
+              onClick={savePreset}
+              disabled={!presetNameInput.trim()}
+              className="h-8 px-2 rounded-md text-xs font-medium bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90 transition-colors"
+            >Save</button>
+            <button
+              onClick={() => { setShowPresetInput(false); setPresetNameInput(''); }}
+              className="h-8 px-2 rounded-md text-xs text-muted-foreground hover:text-foreground transition-colors"
+            ><X className="h-3.5 w-3.5" /></button>
+          </div>
+        )}
       </div>
+
+      {/* Saved filter presets */}
+      {filterPresets.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Bookmark className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {filterPresets.map((preset) => (
+            <span
+              key={preset.id}
+              className="inline-flex items-center gap-1.5 h-7 pl-2.5 pr-1 rounded-full border border-border bg-card text-xs font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              <button onClick={() => applyPreset(preset)} className="hover:text-primary transition-colors">{preset.name}</button>
+              <button
+                onClick={() => deletePreset(preset.id)}
+                className="flex items-center text-muted-foreground hover:text-destructive transition-colors rounded-full p-0.5"
+                title="Delete preset"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* API error banner */}
       {isError && (

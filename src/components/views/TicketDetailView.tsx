@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Paperclip, Send, Eye, EyeOff, Clock, User, Monitor, Tag, Phone, Briefcase, CheckCircle2, Timer, CornerUpRight, Mail, ExternalLink, Link2, Unlink, Plus,
-  UserCheck, RotateCcw, MessageSquare, Bell, BellOff,
+  UserCheck, RotateCcw, MessageSquare, Bell, BellOff, FileDown,
 } from 'lucide-react';
 import { AttachmentView } from '@/components/ui/FilePreview';
 import { Button } from '@/components/ui/button';
@@ -94,6 +94,220 @@ function formatDuration(ms: number): string {
   if (hours > 0) parts.push(`${hours}h`);
   if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
   return parts.join(' ');
+}
+
+function exportTicketToPDF(ticket: import('@/data/mockData').Ticket, messages: import('@/data/mockData').ChatMessage[], links: import('@/data/mockData').TicketLinkEntry[]) {
+  const fmt = (d: string) => new Date(d).toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' });
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const publicMessages = messages.filter((m) => !m.isInternal);
+
+  const linksHtml = links.length > 0
+    ? `<section><h3>Linked Tickets</h3><ul>${links.map((l) => {
+        const other = l.primaryTicketId === ticket.id ? l.linkedTicket : l.primaryTicket;
+        return `<li><strong>${esc(other.id)}</strong> — ${esc(other.title)} <span class="badge">${l.linkType}</span> <span class="badge">${other.status}</span></li>`;
+      }).join('')}</ul></section>`
+    : '';
+
+  const resolutionHtml = ticket.resolutionNote
+    ? `<section><h3>Resolution Note</h3>
+        <p><strong>Summary:</strong> ${esc(ticket.resolutionNote.summary)}</p>
+        ${ticket.resolutionNote.cause ? `<p><strong>Root Cause:</strong> ${esc(ticket.resolutionNote.cause)}</p>` : ''}
+        ${ticket.resolutionNote.preventionSteps ? `<p><strong>Prevention:</strong> ${esc(ticket.resolutionNote.preventionSteps)}</p>` : ''}
+      </section>`
+    : '';
+
+  const messagesHtml = publicMessages.length > 0
+    ? `<section><h3>Conversation</h3>${publicMessages.map((m) =>
+        `<div class="msg ${m.role}">
+          <div class="msg-header"><strong>${esc(m.author)}</strong><span>${fmt(m.timestamp)}</span></div>
+          <div class="msg-body">${esc(m.content)}</div>
+        </div>`
+      ).join('')}</section>`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Ticket ${esc(ticket.id)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Dosis:wght@400;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Open Sans', Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #f7f7f7; line-height: 1.6; }
+  h1, h2, h3, h4 { font-family: 'Dosis', sans-serif; }
+
+  /* ── Top header bar (matches website nav) ── */
+  .site-header {
+    background: #730606;
+    padding: 14px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .site-header img { height: 40px; object-fit: contain; }
+  .site-header .header-right { text-align: right; color: rgba(255,255,255,0.85); font-size: 11px; font-family: 'Open Sans', sans-serif; }
+  .site-header .header-right strong { display: block; font-size: 13px; color: #fff; margin-bottom: 2px; }
+
+  /* ── Title band ── */
+  .title-band {
+    background: #2C3A47;
+    padding: 20px 40px 18px;
+    border-top: 3px solid #730606;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .title-band h1 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .title-band .subtitle { font-size: 12.5px; color: rgba(255,255,255,0.7); font-family: 'Open Sans', sans-serif; }
+
+  /* ── Body ── */
+  .body-wrap { padding: 28px 40px; }
+
+  /* ── Section cards ── */
+  section {
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border-left: 3px solid rgba(115,6,6,0.5);
+    padding: 16px 18px;
+    margin-bottom: 18px;
+  }
+  h3 {
+    font-family: 'Dosis', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #730606;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #f0e0e0;
+  }
+
+  /* ── Details grid ── */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 24px; }
+  .row { display: flex; gap: 8px; align-items: baseline; }
+  .row label { min-width: 130px; color: #6b7280; font-size: 11.5px; flex-shrink: 0; }
+  .row span { font-weight: 600; font-size: 12.5px; color: #1a1a1a; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    background: #fdf2f2;
+    color: #730606;
+    border: 1px solid rgba(115,6,6,0.25);
+    margin-left: 4px;
+    font-family: 'Open Sans', sans-serif;
+  }
+  .badge.navy { background: #eef1f4; color: #2C3A47; border-color: rgba(44,58,71,0.25); }
+
+  /* ── Description box ── */
+  .desc {
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    padding: 12px 14px;
+    white-space: pre-wrap;
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: #333;
+  }
+
+  /* ── Linked tickets ── */
+  ul { padding-left: 0; list-style: none; }
+  li { margin-bottom: 6px; padding: 6px 10px; background: #fafafa; border-radius: 4px; border-left: 2px solid #730606; font-size: 12px; }
+
+  /* ── Messages ── */
+  .msg { border: 1px solid #ece9e9; border-radius: 4px; padding: 10px 12px; margin-bottom: 10px; }
+  .msg.employee { background: #fdf8f8; border-left: 3px solid #730606; }
+  .msg.client { background: #f5f7f9; border-left: 3px solid #2C3A47; }
+  .msg-header { display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; margin-bottom: 6px; }
+  .msg-header strong { color: #730606; font-size: 12px; }
+  .msg.client .msg-header strong { color: #2C3A47; }
+  .msg-body { white-space: pre-wrap; font-size: 12.5px; line-height: 1.65; }
+
+  /* ── Footer ── */
+  .site-footer {
+    background: #2C3A47;
+    padding: 10px 40px;
+    text-align: center;
+    font-size: 10.5px;
+    color: rgba(255,255,255,0.5);
+    font-family: 'Open Sans', sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @media print {
+    body { background: #fff; }
+    .site-header, .title-band, .site-footer { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Website-style header -->
+<div class="site-header">
+  <img src="${window.location.origin}/inorins.png" alt="Inorins Technologies"/>
+  <div class="header-right">
+    <strong>Support Ticket Export</strong>
+    Printed ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' })}
+  </div>
+</div>
+
+<!-- Title band -->
+<div class="title-band">
+  <h1>${esc(ticket.id)} — ${esc(ticket.title)}</h1>
+  <div class="subtitle">${esc(ticket.system)} &nbsp;·&nbsp; ${esc(ticket.bankName ?? '')} &nbsp;·&nbsp; ${esc(ticket.module)}</div>
+</div>
+
+<div class="body-wrap">
+
+<section>
+  <h3>Ticket Details</h3>
+  <div class="grid">
+    <div class="row"><label>Status</label><span>${esc(ticket.status)}</span></div>
+    <div class="row"><label>Priority</label><span>${esc(ticket.priority)}</span></div>
+    <div class="row"><label>Environment</label><span>${esc(ticket.environment)}</span></div>
+    <div class="row"><label>Request Type</label><span>${esc(ticket.requestType ?? 'Issue')}</span></div>
+    <div class="row"><label>Reporter</label><span>${esc(ticket.reporter)} (${esc(ticket.reporterEmail)})</span></div>
+    <div class="row"><label>Assignee</label><span>${esc(ticket.assignee ?? 'Unassigned')}</span></div>
+    <div class="row"><label>Created</label><span>${fmt(ticket.createdAt)}</span></div>
+    <div class="row"><label>Last Updated</label><span>${fmt(ticket.lastUpdated ?? ticket.createdAt)}</span></div>
+    ${ticket.resolvedAt ? `<div class="row"><label>Resolved</label><span>${fmt(ticket.resolvedAt)}</span></div>` : ''}
+  </div>
+</section>
+
+<section>
+  <h3>Description</h3>
+  <div class="desc">${esc(ticket.description)}</div>
+</section>
+
+${resolutionHtml}
+${linksHtml}
+${messagesHtml}
+
+</div>
+
+<!-- Footer -->
+<div class="site-footer">Inorins Technologies Pvt. Ltd. &nbsp;|&nbsp; Confidential Support Record</div>
+
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
 }
 
 export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
@@ -532,6 +746,14 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
             <CornerUpRight className="h-3.5 w-3.5" />
             Forward
           </button>
+          <button
+            onClick={() => exportTicketToPDF(ticket, messages, ticketLinks)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            title="Export ticket as PDF"
+          >
+            <FileDown className="h-3.5 w-3.5" />
+            PDF
+          </button>
         </div>
       </div>
 
@@ -605,7 +827,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
           </Section>
 
           <Section title="Contact Person">
-            {ticket.contactName || ticket.contactDesignation || ticket.contactPhone ? (
+            {ticket.contactName || ticket.contactDesignation || ticket.contactPhone || ticket.contactEmail ? (
               <div className="rounded-md bg-card border border-border p-3 space-y-2">
                 {ticket.contactName && (
                   <div className="flex items-center gap-2.5">
@@ -623,6 +845,12 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
                   <div className="flex items-center gap-2.5">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <a href={`tel:${ticket.contactPhone}`} className="text-sm text-primary hover:underline">{ticket.contactPhone}</a>
+                  </div>
+                )}
+                {ticket.contactEmail && (
+                  <div className="flex items-center gap-2.5">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <a href={`mailto:${ticket.contactEmail}`} className="text-sm text-primary hover:underline">{ticket.contactEmail}</a>
                   </div>
                 )}
               </div>

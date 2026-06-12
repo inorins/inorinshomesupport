@@ -52,10 +52,28 @@ export async function runMigrations() {
     console.log('[db] Migration: added inbox_emails.message_id');
   }
 
-  // Feature 5: contact email for tickets
+  // Feature 5: contact person fields for tickets
+  if (!await columnExists('tickets', 'contact_name')) {
+    await pool.query(
+      `ALTER TABLE tickets ADD COLUMN contact_name VARCHAR(100) NULL AFTER reporter_email`
+    );
+    console.log('[db] Migration: added tickets.contact_name');
+  }
+  if (!await columnExists('tickets', 'contact_designation')) {
+    await pool.query(
+      `ALTER TABLE tickets ADD COLUMN contact_designation VARCHAR(100) NULL AFTER contact_name`
+    );
+    console.log('[db] Migration: added tickets.contact_designation');
+  }
+  if (!await columnExists('tickets', 'contact_phone')) {
+    await pool.query(
+      `ALTER TABLE tickets ADD COLUMN contact_phone VARCHAR(30) NULL AFTER contact_designation`
+    );
+    console.log('[db] Migration: added tickets.contact_phone');
+  }
   if (!await columnExists('tickets', 'contact_email')) {
     await pool.query(
-      `ALTER TABLE tickets ADD COLUMN contact_email VARCHAR(255) NULL AFTER reporter_email`
+      `ALTER TABLE tickets ADD COLUMN contact_email VARCHAR(255) NULL AFTER contact_phone`
     );
     console.log('[db] Migration: added tickets.contact_email');
   }

@@ -110,7 +110,7 @@ export function AppSidebar({ activeView, onNavigate, isAdmin, collapsed, onToggl
     { id: 'dashboard', label: 'Dashboard',   icon: LayoutDashboard },
     { id: 'tickets',   label: 'All Tickets', icon: Ticket },
     { id: 'board',     label: 'Team Board',  icon: Users },
-    { id: 'chat',      label: 'Chat',        icon: MessageSquare, badge: chatUnread || undefined },
+{ id: 'chat',      label: 'Chat',        icon: MessageSquare, badge: chatUnread || undefined },
     { id: 'inbox',     label: 'Email Inbox', icon: Inbox, badge: pendingEmails || undefined },
   ];
 

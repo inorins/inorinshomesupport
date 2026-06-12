@@ -1,4 +1,4 @@
-import { LayoutList, PlusCircle, HelpCircle, Settings, MessageSquare } from 'lucide-react';
+import { LayoutList, PlusCircle, HelpCircle, Settings, MessageSquare, BookUser } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { NotificationBell } from '@/components/ui/NotificationBell';
@@ -11,11 +11,12 @@ interface ClientSidebarProps {
 }
 
 const navItems = [
-  { id: 'my-tickets', label: 'My Tickets', icon: LayoutList },
-  { id: 'chat', label: 'Chat', icon: MessageSquare },
-  { id: 'new-ticket', label: 'Submit a Ticket', icon: PlusCircle },
-  { id: 'faq', label: 'FAQ & Guides', icon: HelpCircle },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'my-tickets',   label: 'My Tickets',     icon: LayoutList },
+  { id: 'chat',         label: 'Chat',            icon: MessageSquare },
+  { id: 'new-ticket',   label: 'Submit a Ticket', icon: PlusCircle },
+  //{ id: 'contacts',     label: 'Contact Book',    icon: BookUser },
+  { id: 'faq',          label: 'FAQ & Guides',    icon: HelpCircle },
+  { id: 'settings',     label: 'Settings',        icon: Settings },
 ];
 
 export function ClientSidebar({ activeView, onNavigate, openTicketCount, unreadChatCount = 0 }: ClientSidebarProps) {
@@ -77,7 +78,7 @@ export function ClientSidebar({ activeView, onNavigate, openTicketCount, unreadC
 
       {/* Footer */}
       <div className="px-4 py-4 border-t border-sidebar-border">
-        <p className="text-[11px] text-sidebar-foreground/60">Powered by Inorins v2.4.1</p>
+        <p className="text-[11px] text-sidebar-foreground/60">Powered by Inorins v2.0.0</p>
       </div>
     </aside>
   );

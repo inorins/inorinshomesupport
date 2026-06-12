@@ -1,5 +1,5 @@
 import { useState, useRef, type ChangeEvent } from 'react';
-import { ArrowLeft, Paperclip, Send, Clock, User, Monitor, Tag, CheckCircle2, AlertCircle, Pencil, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, Clock, User, Monitor, Tag, CheckCircle2, AlertCircle, Pencil, RotateCcw, Briefcase, Phone, Mail } from 'lucide-react';
 import { AttachmentView } from '@/components/ui/FilePreview';
 import { EditTicketDialog } from '@/components/client/EditTicketDialog';
 import { Button } from '@/components/ui/button';
@@ -211,6 +211,37 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
             {ticket?.requestType ? <DetailRow icon={Tag} label="Request Type" value={ticket?.requestType} /> : null}
             {ticket?.requestedDelivery ? <DetailRow icon={Tag} label="Delivery" value={ticket?.requestedDelivery} /> : null}
           </Section>
+
+          {(ticket.contactName || ticket.contactPhone || ticket.contactEmail) && (
+            <Section title="Contact Person">
+              <div className="rounded-md bg-card border border-border p-3 space-y-2">
+                {ticket.contactName && (
+                  <div className="flex items-center gap-2.5">
+                    <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium text-foreground">{ticket.contactName}</span>
+                  </div>
+                )}
+                {ticket.contactDesignation && (
+                  <div className="flex items-center gap-2.5">
+                    <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-foreground">{ticket.contactDesignation}</span>
+                  </div>
+                )}
+                {ticket.contactPhone && (
+                  <div className="flex items-center gap-2.5">
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <a href={`tel:${ticket.contactPhone}`} className="text-sm text-primary hover:underline">{ticket.contactPhone}</a>
+                  </div>
+                )}
+                {ticket.contactEmail && (
+                  <div className="flex items-center gap-2.5">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <a href={`mailto:${ticket.contactEmail}`} className="text-sm text-primary hover:underline">{ticket.contactEmail}</a>
+                  </div>
+                )}
+              </div>
+            </Section>
+          )}
 
           <Section title="Description">
             <p className="text-sm text-foreground leading-relaxed">{ticket.description}</p>

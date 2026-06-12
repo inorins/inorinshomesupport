@@ -23,9 +23,12 @@ export function toMessageTimestamp(date) {
 
 export function withLastUpdated(ticket) {
   const updatedAt = ticket.updated_at ?? ticket.updatedAt ?? ticket.created_at ?? ticket.createdAt;
+  const iso = updatedAt instanceof Date
+    ? updatedAt.toISOString()
+    : (updatedAt ? String(updatedAt) : null);
   return {
     ...ticket,
     requestType: ticket.request_type ?? ticket.requestType ?? 'Issue',
-    lastUpdated: toRelativeTime(updatedAt),
+    lastUpdated: iso,
   };
 }

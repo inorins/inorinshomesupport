@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import { ContactPicker } from '@/components/client/ContactPicker';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import type { Ticket } from '@/data/mockData';
@@ -30,6 +31,7 @@ interface EditForm {
   contactName: string;
   contactDesignation: string;
   contactPhone: string;
+  contactEmail: string;
 }
 
 export function EditTicketDialog({ ticket, open, onClose }: EditTicketDialogProps) {
@@ -49,6 +51,7 @@ export function EditTicketDialog({ ticket, open, onClose }: EditTicketDialogProp
     contactName: '',
     contactDesignation: '',
     contactPhone: '',
+    contactEmail: '',
   });
 
   useEffect(() => {
@@ -66,6 +69,7 @@ export function EditTicketDialog({ ticket, open, onClose }: EditTicketDialogProp
         contactName: ticket.contactName ?? '',
         contactDesignation: ticket.contactDesignation ?? '',
         contactPhone: ticket.contactPhone ?? '',
+        contactEmail: ticket.contactEmail ?? '',
       });
       setError('');
     }
@@ -191,19 +195,36 @@ export function EditTicketDialog({ ticket, open, onClose }: EditTicketDialogProp
           </div>
 
           {/* Contact info */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Contact Name</Label>
-              <Input value={form.contactName} onChange={(e) => f('contactName', e.target.value)} />
+          <div className="pt-1 border-t border-border space-y-3">
+            <ContactPicker
+              fields={{ contactName: form.contactName, contactDesignation: form.contactDesignation, contactPhone: form.contactPhone, contactEmail: form.contactEmail }}
+              onApply={({ contactName: n, contactDesignation: d, contactPhone: p, contactEmail: e }) => {
+                f('contactName', n);
+                f('contactDesignation', d);
+                f('contactPhone', p);
+                f('contactEmail', e);
+              }}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Contact Name</Label>
+                <Input value={form.contactName} onChange={(e) => f('contactName', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Designation</Label>
+                <Input value={form.contactDesignation} onChange={(e) => f('contactDesignation', e.target.value)} />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Designation</Label>
-              <Input value={form.contactDesignation} onChange={(e) => f('contactDesignation', e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Contact Phone</Label>
+                <Input value={form.contactPhone} onChange={(e) => f('contactPhone', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Contact Email</Label>
+                <Input type="email" value={form.contactEmail} onChange={(e) => f('contactEmail', e.target.value)} />
+              </div>
             </div>
-          </div>
-          <div className="space-y-1">
-            <Label>Contact Phone</Label>
-            <Input value={form.contactPhone} onChange={(e) => f('contactPhone', e.target.value)} />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

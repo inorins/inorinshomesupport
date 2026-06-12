@@ -48,7 +48,7 @@ const Index = () => {
 
   const activeView = useMemo(() => {
     const { pathname } = location;
-    if (pathname.startsWith('/staff/board')) return 'board';
+if (pathname.startsWith('/staff/board')) return 'board';
     if (pathname.startsWith('/staff/settings')) return 'settings';
     if (pathname.startsWith('/staff/archive')) return 'archive';
     if (pathname.startsWith('/staff/admin-users')) return 'admin-users';
@@ -160,7 +160,7 @@ const Index = () => {
               element={<DashboardView onViewTicket={handleViewTicket} searchQuery={searchQuery} />}
             />
             <Route path="board" element={<TeamBoardView onViewTicket={handleViewTicket} />} />
-            <Route path="settings" element={<SettingsView />} />
+<Route path="settings" element={<SettingsView />} />
             {isAdmin && (
               <Route path="archive" element={<ArchiveView onViewTicket={handleViewTicket} />} />
             )}

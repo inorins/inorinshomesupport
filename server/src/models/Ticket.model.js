@@ -181,7 +181,7 @@ export const TicketModel = {
 
   async edit(id, updates) {
     const allowed = ['title', 'description', 'priority', 'request_type', 'requested_delivery',
-      'system', 'module', 'form', 'module_details', 'contact_name', 'contact_designation', 'contact_phone'];
+      'system', 'module', 'form', 'module_details', 'contact_name', 'contact_designation', 'contact_phone', 'contact_email'];
     const sets = [];
     const vals = [];
     for (const key of allowed) {
