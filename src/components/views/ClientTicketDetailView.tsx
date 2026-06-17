@@ -209,7 +209,7 @@ export function ClientTicketDetailView({ ticketId, onBack }: ClientTicketDetailV
             <DetailRow icon={Clock} label="Created" value={new Date(ticket.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' })} />
             <DetailRow icon={User} label="Assignee" value={ticket.assignee || 'Awaiting assignment'} />
             {ticket?.requestType ? <DetailRow icon={Tag} label="Request Type" value={ticket?.requestType} /> : null}
-            {ticket?.requestedDelivery ? <DetailRow icon={Tag} label="Delivery" value={ticket?.requestedDelivery} /> : null}
+            {ticket?.requestedDelivery && ticket?.requestType !== 'Issue' ? <DetailRow icon={Tag} label="Delivery" value={ticket?.requestedDelivery} /> : null}
           </Section>
 
           {(ticket.contactName || ticket.contactPhone || ticket.contactEmail) && (

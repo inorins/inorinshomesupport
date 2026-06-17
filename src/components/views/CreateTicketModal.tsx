@@ -73,7 +73,7 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
   const [title, setTitle] = useState('');
   const [bankName, setBankName] = useState('');
   const [description, setDescription] = useState('');
-  const [requestType, setRequestType] = useState<'Issue' | 'Add Form' | 'Add Report' | 'Update'>('Issue');
+  const [requestType, setRequestType] = useState<'Issue' | 'Add Form' | 'Add Report' | 'Update' | 'Data Amendment'>('Issue');
   const [priority, setPriority] = useState('');
   const [system, setSystem] = useState('');
   const [module, setModule] = useState('');
@@ -165,7 +165,7 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
     setTitle('');
     setBankName('');
     setDescription('');
-    setRequestType('Issue' as 'Issue' | 'Add Form' | 'Add Report' | 'Update');
+    setRequestType('Issue');
     setPriority('');
     setSystem('');
     setModule('');
@@ -291,13 +291,14 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Request Type</Label>
-                <Select value={requestType} onValueChange={(value) => setRequestType(value as 'Issue' | 'Add Form' | 'Add Report' | 'Update')}>
+                <Select value={requestType} onValueChange={(value) => setRequestType(value as 'Issue' | 'Add Form' | 'Add Report' | 'Update' | 'Data Amendment')}>
                   <SelectTrigger><SelectValue placeholder="Select request type" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Issue">Issue / Bug</SelectItem>
                     <SelectItem value="Add Form">New Form Request</SelectItem>
                     <SelectItem value="Add Report">New Report Request</SelectItem>
                     <SelectItem value="Update">Update Request</SelectItem>
+                    <SelectItem value="Data Amendment">Data Amendment Request</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

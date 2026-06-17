@@ -27,7 +27,7 @@ export interface Ticket {
   module: string;
   moduleDetails?: string;
   form: string;
-  requestType?: 'Issue' | 'Add Form' | 'Add Report';
+  requestType?: 'Issue' | 'Add Form' | 'Add Report' | 'Update' | 'Data Amendment';
   requestedDelivery?: string;
   priority: Priority;
   status: TicketStatus;

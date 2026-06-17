@@ -120,6 +120,7 @@ export function EditTicketDialog({ ticket, open, onClose }: EditTicketDialogProp
                   <SelectItem value="Add Form">New Form Request</SelectItem>
                   <SelectItem value="Add Report">New Report Request</SelectItem>
                   <SelectItem value="Update">Update Request</SelectItem>
+                  <SelectItem value="Data Amendment">Data Amendment Request</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -135,7 +135,7 @@ export const TicketController = {
 
     const priority = PRIORITIES.has(payload.priority) ? payload.priority : 'Medium';
     const environment = payload.environment === 'Production' ? 'Production' : 'UAT';
-    const requestType = ['Issue', 'Add Form', 'Add Report', 'Update'].includes(payload.requestType) ? payload.requestType : 'Issue';
+    const requestType = ['Issue', 'Add Form', 'Add Report', 'Update', 'Data Amendment'].includes(payload.requestType) ? payload.requestType : 'Issue';
 
     const reporterEmail = String(payload.reporterEmail ?? '').trim();
     let bankName = String(payload.bankName ?? '').trim();

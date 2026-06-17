@@ -73,7 +73,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
 
-  const [requestType, setRequestType] = useState<'Issue' | 'Add Form' | 'Add Report' | 'Update'>('Issue');
+  const [requestType, setRequestType] = useState<'Issue' | 'Add Form' | 'Add Report' | 'Update' | 'Data Amendment'>('Issue');
   const [requestedDelivery, setRequestedDelivery] = useState('Flexible');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -116,7 +116,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
 
   const resetForm = () => {
     setStep(1);
-    setRequestType('Issue' as 'Issue' | 'Add Form' | 'Add Report' | 'Update');
+    setRequestType('Issue');
     setRequestedDelivery('Flexible');
     setTitle('');
     setDescription('');
@@ -208,7 +208,7 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
         moduleDetails,
         form,
         requestType,
-        requestedDelivery,
+        requestedDelivery: requestType !== 'Issue' ? requestedDelivery : undefined,
         environment: 'Production',
         reporter: user?.name,
         reporterEmail: user?.email,
@@ -297,13 +297,14 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
         <div className="space-y-4 bg-card rounded-lg border border-border p-5">
           <div className="space-y-1.5">
             <Label>Request Type <span className="text-primary">*</span></Label>
-            <Select value={requestType} onValueChange={(value) => setRequestType(value as 'Issue' | 'Add Form' | 'Add Report' | 'Update')}>
+            <Select value={requestType} onValueChange={(value) => setRequestType(value as 'Issue' | 'Add Form' | 'Add Report' | 'Update' | 'Data Amendment')}>
               <SelectTrigger><SelectValue placeholder="Select request type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Issue">Issue / Bug</SelectItem>
                 <SelectItem value="Add Form">New Form Request</SelectItem>
                 <SelectItem value="Add Report">New Report Request</SelectItem>
                 <SelectItem value="Update">Update Request</SelectItem>
+                <SelectItem value="Data Amendment">Data Amendment Request</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -317,14 +318,16 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
                     ? 'Brief summary of the report request'
                     : requestType === 'Update'
                       ? 'Brief summary of the update request'
-                      : 'Brief summary of the problem'
+                      : requestType === 'Data Amendment'
+                        ? 'Brief summary of the data amendment request'
+                        : 'Brief summary of the problem'
               }
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
-            <Label>{requestType === 'Add Form' ? 'Form Request Details' : requestType === 'Add Report' ? 'Report Request Details' : requestType === 'Update' ? 'Update Request Details' : 'Description'}</Label>
+            <Label>{requestType === 'Add Form' ? 'Form Request Details' : requestType === 'Add Report' ? 'Report Request Details' : requestType === 'Update' ? 'Update Request Details' : requestType === 'Data Amendment' ? 'Data Amendment Details' : 'Description'}</Label>
             <Textarea
               placeholder={
                 requestType === 'Add Form'
@@ -333,7 +336,9 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
                     ? 'Explain what the report should include, filters, grouping, schedule, and who will use it.'
                     : requestType === 'Update'
                       ? 'Describe what needs to be updated, the current behavior, and the expected outcome.'
-                      : 'Describe the issue in detail — steps to reproduce, error messages, affected users...'
+                      : requestType === 'Data Amendment'
+                        ? 'Describe the data that needs to be amended, the current values, the correct values, and the reason for the change.'
+                        : 'Describe the issue in detail — steps to reproduce, error messages, affected users...'
               }
               rows={5}
               value={description}
@@ -427,7 +432,9 @@ export function ClientNewTicketView({ onSuccess }: ClientNewTicketViewProps) {
                 ? 'Choose the system, module, and report area related to the report request. If you do not know the exact module, leave it as Not sure and describe the area.'
                 : requestType === 'Update'
                   ? 'Choose the system, module, and form related to the update request. If you do not know the exact module, leave it as Not sure and describe the area.'
-                  : 'Select the Inorins system, module, and form where the issue occurred.'}
+                  : requestType === 'Data Amendment'
+                    ? 'Choose the system, module, and form where the data amendment is required.'
+                    : 'Select the Inorins system, module, and form where the issue occurred.'}
           </p>
           <div className="space-y-1.5">
             <Label>System <span className="text-primary">*</span></Label>

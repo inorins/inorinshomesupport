@@ -54,11 +54,12 @@ const priorityStyles: Record<Priority, string> = {
   Low: 'bg-muted text-muted-foreground border-border',
 };
 
-const requestTypeStyles: Record<'Issue' | 'Add Form' | 'Add Report' | 'Update', string> = {
+const requestTypeStyles: Record<'Issue' | 'Add Form' | 'Add Report' | 'Update' | 'Data Amendment', string> = {
   Issue: 'bg-warning/10 text-warning border-warning/20',
   'Add Form': 'bg-info/10 text-info border-info/20',
   'Add Report': 'bg-primary/10 text-primary border-primary/20',
   Update: 'bg-secondary/10 text-secondary border-secondary/20',
+  'Data Amendment': 'bg-success/10 text-success border-success/20',
 };
 
 const statusStyles: Record<TicketStatus, string> = {
@@ -459,7 +460,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
 
   const displayStatus = (currentStatus || ticket?.status) as TicketStatus;
   const displayAssignee = currentAssignee || ticket?.assignee || 'Unassigned';
-  const displayRequestType = (ticket?.requestType ?? 'Issue') as 'Issue' | 'Add Form' | 'Add Report' | 'Update';
+  const displayRequestType = (ticket?.requestType ?? 'Issue') as 'Issue' | 'Add Form' | 'Add Report' | 'Update' | 'Data Amendment';
   const isLocked = displayStatus === 'Resolved' || displayStatus === 'Closed';
 
   useEffect(() => {
@@ -866,7 +867,7 @@ export function TicketDetailView({ ticketId, onBack }: TicketDetailViewProps) {
             {ticket.moduleDetails ? <DetailRow icon={Tag} label="Module Notes" value={ticket.moduleDetails} /> : null}
             <DetailRow icon={Tag} label="Form" value={ticket.form} />
             <DetailRow icon={Tag} label="Request Type" value={displayRequestType} />
-            {ticket.requestedDelivery ? <DetailRow icon={Tag} label="Delivery" value={ticket.requestedDelivery} /> : null}
+            {ticket.requestedDelivery && ticket.requestType !== 'Issue' ? <DetailRow icon={Tag} label="Delivery" value={ticket.requestedDelivery} /> : null}
             <DetailRow icon={Clock} label="Created" value={new Date(ticket.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Kathmandu' })} />
           </Section>
 
